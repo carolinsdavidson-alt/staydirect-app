@@ -184,6 +184,7 @@ section{padding:100px 5%}
   height:200px;display:flex;align-items:center;justify-content:center;
   font-size:64px;position:relative;
   background:linear-gradient(135deg,var(--teal-light),var(--sand2));
+  background-size:cover;background-position:center;
 }
 .hotel-badge{
   position:absolute;top:14px;right:14px;
@@ -199,8 +200,10 @@ section{padding:100px 5%}
 .room-name{font-size:12px;color:var(--muted)}
 .room-price{font-size:14px;font-weight:600;color:var(--teal)}
 .room-price span{font-size:11px;font-weight:400;color:var(--muted)}
-.hotel-footer{margin-top:14px;display:flex;gap:8px}
-.btn-sm{flex:1;padding:9px;border-radius:7px;font-size:13px;font-weight:500;border:none;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .15s}
+.hotel-footer{margin-top:14px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+.hotel-amenities-tags{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.amenity-tag{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--sand);color:var(--muted);white-space:nowrap}
+.btn-sm{padding:9px 14px;border-radius:7px;font-size:13px;font-weight:500;border:none;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .15s;white-space:nowrap}
 .btn-sm-primary{background:var(--teal);color:#fff}
 .btn-sm-primary:hover{background:var(--teal2)}
 .btn-sm-outline{background:transparent;border:1px solid var(--border);color:var(--ink)}
@@ -472,18 +475,15 @@ footer{
       <h2 class="section-title">Отели <em>Шри-Ланки</em></h2>
     </div>
     <div class="search-bar">
-      <select id="dest-filter" onchange="filterHotels()">
+      <input type="text" id="search-input" placeholder="🔍 Название отеля или локация..." style="min-width:200px">
+      <select id="dest-filter">
         <option value="">Все локации</option>
-        <option value="Ahangama">Ахангама</option>
-        <option value="Galle">Галле</option>
-        <option value="Mirissa">Мирисса</option>
-        <option value="Ella">Элла</option>
       </select>
-      <input type="text" id="search-input" placeholder="🔍 Поиск отеля..." onkeyup="filterHotels()" style="min-width:160px">
-      <input type="date" id="checkin" value="2026-05-16">
-      <input type="date" id="checkout" value="2026-05-23">
-      <button class="search-bar-btn" onclick="filterHotels()">Найти</button>
+      <div style="display:flex;align-items:center;gap:6px"><label style="font-size:12px;color:var(--muted);white-space:nowrap">Заезд</label><input type="date" id="checkin"></div>
+      <div style="display:flex;align-items:center;gap:6px"><label style="font-size:12px;color:var(--muted);white-space:nowrap">Выезд</label><input type="date" id="checkout"></div>
+      <button class="search-bar-btn" onclick="searchHotels()">Найти</button>
     </div>
+    <div id="search-summary" style="margin-top:12px;font-size:14px;color:var(--muted);display:none"></div>
   </div>
   <div class="hotels-grid" id="hotels-grid"></div>
 </section>
@@ -681,6 +681,8 @@ footer{
 
 <script>
 let hotels = [];
+let currentPage = 1;
+const perPage = 24;
 
 // Load hotels from API
 async function loadHotels() {
@@ -692,54 +694,154 @@ async function loadHotels() {
   }
 }
 
-// Build location list dynamically
+// Build location filter from real data
 function buildLocationFilter() {
   const locs = [...new Set(hotels.map(h=>h.loc))].sort();
   const sel = document.getElementById('dest-filter');
-  sel.innerHTML = '<option value="">Все локации</option>' + 
-    locs.map(l=>`<option value="${l}">${l}</option>`).join('');
+  sel.innerHTML = '<option value="">Все локации (' + locs.length + ')</option>' + 
+    locs.map(l => {
+      const count = hotels.filter(h=>h.loc===l).length;
+      return '<option value="' + l + '">' + l + ' (' + count + ')</option>';
+    }).join('');
 }
 
-function filterHotels(){
+// Set default dates
+function setDefaultDates() {
+  const today = new Date();
+  const checkin = new Date(today);
+  checkin.setDate(today.getDate() + 7);
+  const checkout = new Date(checkin);
+  checkout.setDate(checkin.getDate() + 7);
+  document.getElementById('checkin').value = checkin.toISOString().split('T')[0];
+  document.getElementById('checkout').value = checkout.toISOString().split('T')[0];
+  document.getElementById('checkin').min = today.toISOString().split('T')[0];
+}
+
+// Search and filter
+function searchHotels() {
   const dest = document.getElementById('dest-filter').value;
-  const search = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : '';
+  const search = document.getElementById('search-input').value.toLowerCase().trim();
   const checkin = document.getElementById('checkin').value;
   const checkout = document.getElementById('checkout').value;
-  const nights = checkin&&checkout ? Math.max(1,Math.round((new Date(checkout)-new Date(checkin))/86400000)) : 7;
-  let filtered = dest ? hotels.filter(h=>h.loc===dest) : hotels;
-  if (search) filtered = filtered.filter(h=>h.name.toLowerCase().includes(search)||h.loc.toLowerCase().includes(search));
+  
+  let nights = 7;
+  if (checkin && checkout) {
+    nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / 86400000));
+    if (nights < 1 || new Date(checkout) <= new Date(checkin)) {
+      showToast('Дата выезда должна быть позже даты заезда');
+      return;
+    }
+  }
+  
+  let filtered = [...hotels];
+  
+  // Filter by location
+  if (dest) filtered = filtered.filter(h => h.loc === dest);
+  
+  // Filter by search text
+  if (search) {
+    filtered = filtered.filter(h => 
+      h.name.toLowerCase().includes(search) || 
+      h.loc.toLowerCase().includes(search) ||
+      (h.desc && h.desc.toLowerCase().includes(search)) ||
+      (h.amenities && h.amenities.toLowerCase().includes(search))
+    );
+  }
+  
+  // Filter: only hotels with rooms
+  filtered = filtered.filter(h => h.rooms && h.rooms.length > 0);
+  
+  currentPage = 1;
   renderHotels(filtered, nights);
+  
+  // Show search summary
+  const summary = document.getElementById('search-summary');
+  if (search || dest || (checkin && checkout)) {
+    let msg = 'Найдено <strong>' + filtered.length + '</strong> отелей';
+    if (dest) msg += ' в ' + dest;
+    if (checkin && checkout) msg += ' · ' + nights + ' ночей (' + formatDate(checkin) + ' – ' + formatDate(checkout) + ')';
+    summary.innerHTML = msg;
+    summary.style.display = 'block';
+  } else {
+    summary.style.display = 'none';
+  }
+  
   document.getElementById('stat-h').textContent = filtered.length;
 }
 
-function renderHotels(list, nights=7){
+function formatDate(d) {
+  const dt = new Date(d);
+  return dt.toLocaleDateString('ru-RU', {day:'numeric',month:'short'});
+}
+
+function renderHotels(list, nights) {
+  nights = nights || 7;
+  const start = 0;
+  const end = currentPage * perPage;
+  const visible = list.slice(start, end);
   const grid = document.getElementById('hotels-grid');
-  grid.innerHTML = list.map(h=>`
-    <div class="hotel-card">
-      <div class="hotel-img">
-        <span>${h.emoji}</span>
-        <div class="hotel-badge">★ ${h.rating}</div>
-      </div>
-      <div class="hotel-body">
-        <div class="hotel-name">${h.name}</div>
-        <div class="hotel-loc">📍 ${h.loc}, Шри-Ланка</div>
-        <div class="hotel-rooms">
-          ${h.rooms.slice(0,3).map(r=>`
-            <div class="room-row">
-              <span class="room-name">${r.type}</span>
-              <span class="room-price">$${r.price}<span>/ночь</span></span>
-            </div>
-          `).join('')}
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">${nights} ночей · от $${Math.min(...h.rooms.map(r=>r.price))*nights}</div>
-        </div>
-        <div class="hotel-footer">
-          <button class="btn-sm btn-sm-outline">Подробнее</button>
-          <button class="btn-sm btn-sm-primary" onclick="showToast('Запрос отправлен! Менеджер свяжется с вами.')">Забронировать</button>
-        </div>
-      </div>
-    </div>
-  `).join('');
+  
+  grid.innerHTML = visible.map(h => {
+    const minPrice = h.rooms.length ? Math.min(...h.rooms.map(r=>r.price)) : 0;
+    const photoStyle = h.photo 
+      ? 'background-image:url(' + h.photo + ');background-size:cover;background-position:center'
+      : '';
+    return '<div class="hotel-card">' +
+      '<div class="hotel-img" style="' + photoStyle + '">' +
+        (h.photo ? '' : '<span>' + (h.emoji||'🏨') + '</span>') +
+        '<div class="hotel-badge">★ ' + h.rating + '</div>' +
+      '</div>' +
+      '<div class="hotel-body">' +
+        '<div class="hotel-name">' + escH(h.name) + '</div>' +
+        '<div class="hotel-loc">📍 ' + escH(h.loc) + ', Шри-Ланка</div>' +
+        '<div class="hotel-rooms">' +
+          h.rooms.slice(0,3).map(r => 
+            '<div class="room-row">' +
+              '<span class="room-name">' + escH(r.type) + '</span>' +
+              '<span class="room-price">$' + r.price + '<span>/ночь</span></span>' +
+            '</div>'
+          ).join('') +
+          (h.rooms.length > 3 ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">+ ещё ' + (h.rooms.length-3) + ' типов номеров</div>' : '') +
+          '<div style="font-size:12px;color:var(--teal);font-weight:600;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">' +
+            nights + ' ночей · от $' + (minPrice*nights) +
+          '</div>' +
+        '</div>' +
+        '<div class="hotel-footer">' +
+          '<span class="hotel-amenities-tags">' + (h.amenities||'').split(',').slice(0,3).map(a => a.trim() ? '<span class="amenity-tag">' + escH(a.trim()) + '</span>' : '').join('') + '</span>' +
+          '<button class="btn-sm btn-sm-primary" onclick="bookHotel(\'' + escH(h.name) + '\', \'' + escH(h.loc) + '\')">Запрос</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  
+  // Show "Load more" if there are more hotels
+  if (end < list.length) {
+    grid.innerHTML += '<div style="grid-column:1/-1;text-align:center;padding:24px">' +
+      '<button class="btn-outline" onclick="currentPage++;renderHotels(lastFiltered,' + nights + ')" style="font-size:14px;padding:10px 32px">' +
+        'Показать ещё (' + (list.length - end) + ' отелей)' +
+      '</button></div>';
+  }
+  
+  lastFiltered = list;
   document.getElementById('stat-h').textContent = list.length;
+}
+let lastFiltered = [];
+
+function escH(s) { 
+  const d = document.createElement('div'); 
+  d.textContent = s||''; 
+  return d.innerHTML; 
+}
+
+function bookHotel(name, loc) {
+  const checkin = document.getElementById('checkin').value;
+  const checkout = document.getElementById('checkout').value;
+  let msg = 'Запрос на ' + name + ' (' + loc + ')';
+  if (checkin && checkout) {
+    msg += ' на ' + formatDate(checkin) + ' – ' + formatDate(checkout);
+  }
+  msg += ' отправлен. Менеджер свяжется с вами.';
+  showToast(msg, true);
 }
 
 function submitForm(){
@@ -760,12 +862,19 @@ function showToast(msg, success=false){
   toastTimer = setTimeout(()=>t.classList.remove('show'), 4000);
 }
 
-// Init: load from API
+// Init
+setDefaultDates();
 loadHotels().then(() => {
   buildLocationFilter();
   renderHotels(hotels);
   document.getElementById('stat-h').textContent = hotels.length;
 });
+
+// Live search on Enter key
+document.getElementById('search-input').addEventListener('keyup', e => {
+  if (e.key === 'Enter') searchHotels();
+});
+document.getElementById('dest-filter').addEventListener('change', searchHotels);
 
 // Animate stats on scroll
 const observer = new IntersectionObserver(entries=>{

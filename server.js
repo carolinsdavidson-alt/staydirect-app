@@ -25,6 +25,7 @@ db.exec(`
     region TEXT DEFAULT 'Southern',
     rating REAL DEFAULT 8.0,
     emoji TEXT DEFAULT '🏨',
+    photo TEXT DEFAULT '',
     address TEXT DEFAULT '',
     amenities TEXT DEFAULT '',
     desc TEXT DEFAULT '',
@@ -130,14 +131,14 @@ app.get('/api/admin/hotels', (req, res) => {
 
 app.post('/api/admin/hotels', (req, res) => {
   try {
-    const { name, loc, region, rating, emoji, address, amenities, desc, status } = req.body;
+    const { name, loc, region, rating, emoji, photo, address, amenities, desc, status } = req.body;
     if (!name || !loc) {
       return res.status(400).json({ error: 'name and loc are required' });
     }
     const result = db.prepare(
-      `INSERT INTO hotels (name, loc, region, rating, emoji, address, amenities, desc, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(name, loc, region || 'Southern', rating || 8.0, emoji || '🏨', address || '', amenities || '', desc || '', status || 'active');
+      `INSERT INTO hotels (name, loc, region, rating, emoji, photo, address, amenities, desc, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(name, loc, region || 'Southern', rating || 8.0, emoji || '🏨', photo || '', address || '', amenities || '', desc || '', status || 'active');
     const hotel = db.prepare('SELECT * FROM hotels WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(hotel);
   } catch (err) {
@@ -147,13 +148,13 @@ app.post('/api/admin/hotels', (req, res) => {
 
 app.put('/api/admin/hotels/:id', (req, res) => {
   try {
-    const { name, loc, region, rating, emoji, address, amenities, desc, status } = req.body;
+    const { name, loc, region, rating, emoji, photo, address, amenities, desc, status } = req.body;
     const existing = db.prepare('SELECT * FROM hotels WHERE id = ?').get(req.params.id);
     if (!existing) {
       return res.status(404).json({ error: 'Hotel not found' });
     }
     db.prepare(
-      `UPDATE hotels SET name=?, loc=?, region=?, rating=?, emoji=?, address=?, amenities=?, desc=?, status=?
+      `UPDATE hotels SET name=?, loc=?, region=?, rating=?, emoji=?, photo=?, address=?, amenities=?, desc=?, status=?
        WHERE id=?`
     ).run(
       name ?? existing.name,
@@ -161,6 +162,7 @@ app.put('/api/admin/hotels/:id', (req, res) => {
       region ?? existing.region,
       rating ?? existing.rating,
       emoji ?? existing.emoji,
+      photo ?? existing.photo,
       address ?? existing.address,
       amenities ?? existing.amenities,
       desc ?? existing.desc,

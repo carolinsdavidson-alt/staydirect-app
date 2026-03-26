@@ -440,6 +440,8 @@ tr:hover td{background:var(--sand)}
         </div>
         <div class="fg"><label>Рейтинг (0–10)</label><input id="h-rating" type="number" min="0" max="10" step="0.1" placeholder="8.7"></div>
         <div class="fg"><label>Эмодзи</label><input id="h-emoji" placeholder="🏖" maxlength="2"></div>
+        <div class="fg full"><label>Фото URL</label><input id="h-photo" placeholder="https://images.unsplash.com/photo-...?w=400&h=300&fit=crop"></div>
+        <div id="h-photo-preview" style="display:none;margin:-8px 0 8px;grid-column:1/-1"><img style="max-height:120px;border-radius:8px;border:1px solid var(--border)" /></div>
         <div class="fg full"><label>Адрес</label><input id="h-address" placeholder="Galle Road, Kathaluwa, 80650"></div>
         <div class="fg full"><label>Удобства</label><input id="h-amenities" placeholder="Pool, WiFi, AC, Parking, Restaurant"></div>
         <div class="fg full"><label>Описание</label><textarea id="h-desc" placeholder="Краткое описание отеля..."></textarea></div>
@@ -613,6 +615,20 @@ function minPrice(hid) { const r=roomsByHotel(hid); return r.length? Math.min(..
 function genKey() { return 'sk_live_'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,10); }
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+function updatePhotoPreview(url) {
+  const wrap = document.getElementById('h-photo-preview');
+  if (url && url.startsWith('http')) {
+    wrap.style.display = 'block';
+    wrap.querySelector('img').src = url;
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const pi = document.getElementById('h-photo');
+  if(pi) pi.addEventListener('input', e => updatePhotoPreview(e.target.value));
+});
+
 function renderPagination(containerId, totalItems, currentPage, onPageChange) {
   const totalPages = Math.ceil(totalItems / PER_PAGE);
   const c = document.getElementById(containerId);
@@ -654,7 +670,7 @@ async function loadDashboard() {
 
     document.getElementById('dash-table').innerHTML = hotels.slice(0,5).map(h=>`
       <tr>
-        <td><strong>${escHtml(h.emoji)} ${escHtml(h.name)}</strong></td>
+        <td><strong>${h.photo ? '<img src="'+escHtml(h.photo)+'" style="width:32px;height:24px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px">' : escHtml(h.emoji)+' '}${escHtml(h.name)}</strong></td>
         <td>${escHtml(h.loc)}</td>
         <td>${roomsByHotel(h.id).length}</td>
         <td><strong style="color:var(--teal)">$${minPrice(h.id)}/ночь</strong></td>
@@ -706,7 +722,7 @@ function renderHotelsPage() {
   const slice = hotelsFiltered.slice(start, start+PER_PAGE);
   document.getElementById('hotels-table').innerHTML = slice.map(h=>`
     <tr>
-      <td><strong>${escHtml(h.emoji)} ${escHtml(h.name)}</strong></td>
+      <td><strong>${h.photo ? '<img src="'+escHtml(h.photo)+'" style="width:40px;height:30px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px">' : escHtml(h.emoji)+' '}${escHtml(h.name)}</strong></td>
       <td>${escHtml(h.loc)}</td>
       <td>★ ${h.rating}</td>
       <td>${roomsByHotel(h.id).length}</td>
@@ -731,13 +747,16 @@ function openHotelModal(id=null) {
     document.getElementById('h-region').value = h.region||'Southern';
     document.getElementById('h-rating').value = h.rating;
     document.getElementById('h-emoji').value = h.emoji||'';
+    document.getElementById('h-photo').value = h.photo||'';
+    updatePhotoPreview(h.photo);
     document.getElementById('h-address').value = h.address||'';
     document.getElementById('h-amenities').value = h.amenities||'';
     document.getElementById('h-desc').value = h.desc||'';
   } else {
-    ['h-name','h-address','h-amenities','h-desc'].forEach(i=>document.getElementById(i).value='');
+    ['h-name','h-address','h-amenities','h-desc','h-photo'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('h-rating').value='';
     document.getElementById('h-emoji').value='🏨';
+    updatePhotoPreview('');
   }
   document.getElementById('modal-hotel').classList.add('open');
 }
@@ -751,6 +770,7 @@ async function saveHotel() {
     region:document.getElementById('h-region').value,
     rating:parseFloat(document.getElementById('h-rating').value)||8.0,
     emoji:document.getElementById('h-emoji').value||'🏨',
+    photo:document.getElementById('h-photo').value||'',
     address:document.getElementById('h-address').value,
     amenities:document.getElementById('h-amenities').value,
     desc:document.getElementById('h-desc').value,
@@ -928,7 +948,7 @@ function renderPricesGrid() {
   document.getElementById('prices-grid').innerHTML = show.map(r=>{
     const h = hotelById(r.hotelId);
     return `<div class="price-card">
-      <div class="pc-hotel">${h?escHtml(h.emoji)+' '+escHtml(h.name):'—'}</div>
+      <div class="pc-hotel">${h?(h.photo?'<img src="'+escHtml(h.photo)+'" style="width:28px;height:20px;object-fit:cover;border-radius:3px;vertical-align:middle;margin-right:4px">':escHtml(h.emoji)+' ')+escHtml(h.name):'—'}</div>
       <div class="pc-room">${escHtml(r.type)}</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${escHtml(r.view)} · ${r.capacity} чел. · ${r.breakfast?'✓ Завтрак':''}</div>
       <div class="pc-price-row">

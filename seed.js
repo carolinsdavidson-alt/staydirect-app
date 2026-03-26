@@ -23,6 +23,7 @@ db.exec(`
     region TEXT DEFAULT 'Southern',
     rating REAL DEFAULT 8.0,
     emoji TEXT DEFAULT '🏨',
+    photo TEXT DEFAULT '',
     address TEXT DEFAULT '',
     amenities TEXT DEFAULT '',
     desc TEXT DEFAULT '',
@@ -93,8 +94,8 @@ if (count > 0) {
 const data = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
 
 const insertHotel = db.prepare(
-  `INSERT INTO hotels (id, name, loc, region, rating, emoji, address, amenities, desc, status)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  `INSERT INTO hotels (id, name, loc, region, rating, emoji, photo, address, amenities, desc, status)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 
 const insertRoom = db.prepare(
@@ -115,7 +116,7 @@ const insertBooking = db.prepare(
 const seedAll = db.transaction(() => {
   // Hotels
   for (const h of data.hotels || []) {
-    insertHotel.run(h.id, h.name, h.loc, h.region || 'Southern', h.rating || 8.0, h.emoji || '🏨', h.address || '', h.amenities || '', h.desc || '', h.status || 'active');
+    insertHotel.run(h.id, h.name, h.loc, h.region || 'Southern', h.rating || 8.0, h.emoji || '🏨', h.photo || '', h.address || '', h.amenities || '', h.desc || '', h.status || 'active');
   }
 
   // Rooms
