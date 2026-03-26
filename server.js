@@ -474,6 +474,21 @@ app.post('/api/v1/bookings', requireApiKey, (req, res) => {
   }
 });
 
+// ─── Public API for landing page (no key required) ─────────────────
+app.get('/api/public/hotels', (req, res) => {
+  try {
+    const hotels = db.prepare('SELECT * FROM hotels WHERE status = ?').all('active');
+    const rooms = db.prepare('SELECT * FROM rooms WHERE status = ?').all('active');
+    const result = hotels.map(h => ({
+      ...h,
+      rooms: rooms.filter(r => r.hotelId === h.id).map(r => ({ type: r.type, price: r.price }))
+    }));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── HTML routes ─────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

@@ -372,7 +372,7 @@ footer{
     </div>
     <div class="hero-stats">
       <div>
-        <div class="stat-num" id="stat-h">4</div>
+        <div class="stat-num" id="stat-h">...</div>
         <div class="stat-label">Отелей в базе</div>
       </div>
       <div>
@@ -672,7 +672,7 @@ footer{
     <a href="#how">Как работает</a>
     <a href="#hotels">Отели</a>
     <a href="#operators">Операторам</a>
-    <a href="https://staydirect-production.up.railway.app/api/v1" target="_blank">API Docs</a>
+    <a href="/api/v1" target="_blank">API Docs</a>
   </div>
   <div class="footer-copy">© 2026 StayDirect. Шри-Ланка.</div>
 </footer>
@@ -680,30 +680,17 @@ footer{
 <div class="toast" id="toast"></div>
 
 <script>
-// Load hotels from admin localStorage or use defaults
-function getHotels() {
-  try {
-    const saved = localStorage.getItem('staydirect_db_v5');
-    if (saved) {
-      const db = JSON.parse(saved);
-      if (db.hotels && db.hotels.length > 0) {
-        // Merge rooms into hotels for display
-        return db.hotels.filter(h=>h.status==='active').map(h => ({
-          ...h,
-          rooms: (db.rooms||[]).filter(r=>r.hotelId===h.id && r.status==='active').map(r=>({type:r.type,price:r.price}))
-        }));
-      }
-    }
-  } catch(e) {}
-  return [
-    {id:1,name:'Liya Beach Kathaluwa',loc:'Ahangama',rating:8.7,emoji:'🏖',rooms:[{type:'Double Sea View',price:39},{type:'Pool View',price:44},{type:'Standard',price:29}]},
-    {id:2,name:'The Fortress Resort & Spa',loc:'Galle',rating:9.1,emoji:'🏰',rooms:[{type:'Luxury Suite',price:180},{type:'Superior Room',price:120}]},
-    {id:3,name:'Mirissa Hills',loc:'Mirissa',rating:8.4,emoji:'🌊',rooms:[{type:'Surf Bungalow',price:55},{type:'Pool Villa',price:95}]},
-    {id:4,name:'Ella Rock Retreat',loc:'Ella',rating:8.9,emoji:'🏔',rooms:[{type:'Mountain View',price:65}]},
-  ];
-}
+let hotels = [];
 
-let hotels = getHotels();
+// Load hotels from API
+async function loadHotels() {
+  try {
+    const r = await fetch('/api/public/hotels');
+    if (r.ok) hotels = await r.json();
+  } catch(e) {
+    console.error('Failed to load hotels:', e);
+  }
+}
 
 // Build location list dynamically
 function buildLocationFilter() {
@@ -714,7 +701,6 @@ function buildLocationFilter() {
 }
 
 function filterHotels(){
-  hotels = getHotels();
   const dest = document.getElementById('dest-filter').value;
   const search = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : '';
   const checkin = document.getElementById('checkin').value;
@@ -774,11 +760,12 @@ function showToast(msg, success=false){
   toastTimer = setTimeout(()=>t.classList.remove('show'), 4000);
 }
 
-// Init
-hotels = getHotels();
-buildLocationFilter();
-renderHotels(hotels);
-document.getElementById('stat-h').textContent = hotels.length;
+// Init: load from API
+loadHotels().then(() => {
+  buildLocationFilter();
+  renderHotels(hotels);
+  document.getElementById('stat-h').textContent = hotels.length;
+});
 
 // Animate stats on scroll
 const observer = new IntersectionObserver(entries=>{
