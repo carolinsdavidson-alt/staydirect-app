@@ -122,6 +122,36 @@ try {
   }
 } catch(e) { console.log('rate_periods migration:', e.message); }
 
+// Migration: add mealPlans column to hotels table
+try {
+  db.prepare("SELECT mealPlans FROM hotels LIMIT 1").get();
+} catch(e) {
+  db.exec("ALTER TABLE hotels ADD COLUMN mealPlans TEXT DEFAULT '[\"BB\"]'");
+  console.log('Migrated hotels: added mealPlans column');
+}
+
+// ─── Price Matrix API ───────────────────────────────────────────────
+
+// Helper: normalize flat prices {"SGL":10} → treat as BB: {"BB":{"SGL":10}}
+function normalizePrices(raw) {
+  let p = {};
+  try { p = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {}); } catch(e){ return {}; }
+  if (!p || typeof p !== 'object') return {};
+  const keys = Object.keys(p);
+  if (keys.length === 0) return {};
+  // Check if already nested (first value is object)
+  const first = p[keys[0]];
+  if (typeof first === 'object' && first !== null) return p;
+  // Flat format → wrap as BB
+  return { BB: p };
+}
+
+// Helper: extract flat prices for a meal plan from nested format
+function flatPricesForMeal(nestedPrices, meal) {
+  const norm = normalizePrices(nestedPrices);
+  return norm[meal] || {};
+}
+
 // ─── API Key middleware ──────────────────────────────────────────────
 function requireApiKey(req, res, next) {
   const apiKey = req.headers['x-api-key'];
@@ -344,6 +374,66 @@ app.patch('/api/admin/keys/:id/revoke', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── Price Matrix ───────────────────────────────────────────────────
+app.get('/api/admin/hotels/:id/price-matrix', (req, res) => {
+  try {
+    const hotel = db.prepare('SELECT * FROM hotels WHERE id = ?').get(req.params.id);
+    if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
+    const rooms = db.prepare("SELECT * FROM rooms WHERE hotelId = ? AND status = 'active'").all(req.params.id);
+    const periods = db.prepare("SELECT * FROM rate_periods WHERE (hotelId = ? OR hotelId = 0) AND status = 'active' ORDER BY dateFrom").all(req.params.id);
+    let mealPlans;
+    try { mealPlans = JSON.parse(hotel.mealPlans || '["BB"]'); } catch(e) { mealPlans = ['BB']; }
+
+    // Normalize prices to nested meal plan format
+    const roomsOut = rooms.map(r => ({
+      id: r.id, type: r.type, view: r.view, capacity: r.capacity,
+      prices: normalizePrices(r.prices)
+    }));
+    const periodsOut = periods.map(p => ({
+      id: p.id, name: p.name, type: p.type,
+      dateFrom: p.dateFrom, dateTo: p.dateTo,
+      prices: normalizePrices(p.prices),
+      surcharge: p.surcharge || 0
+    }));
+
+    res.json({ hotel, rooms: roomsOut, periods: periodsOut, mealPlans });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/admin/hotels/:id/price-matrix', (req, res) => {
+  try {
+    const hotel = db.prepare('SELECT * FROM hotels WHERE id = ?').get(req.params.id);
+    if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
+
+    const { rooms, periods } = req.body;
+
+    const updateRoom = db.prepare('UPDATE rooms SET prices = ?, price = ? WHERE id = ?');
+    const updatePeriod = db.prepare('UPDATE rate_periods SET prices = ? WHERE id = ?');
+
+    const tx = db.transaction(() => {
+      if (rooms && Array.isArray(rooms)) {
+        for (const r of rooms) {
+          const pricesJson = JSON.stringify(r.prices || {});
+          // Compute base price from BB.DBL or first available
+          const norm = r.prices || {};
+          const bb = norm.BB || norm[Object.keys(norm)[0]] || {};
+          const basePrice = bb.DBL || bb.SGL || Object.values(bb)[0] || 0;
+          updateRoom.run(pricesJson, basePrice, r.id);
+        }
+      }
+      if (periods && Array.isArray(periods)) {
+        for (const p of periods) {
+          const pricesJson = JSON.stringify(p.prices || {});
+          updatePeriod.run(pricesJson, p.id);
+        }
+      }
+    });
+    tx();
+
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── Rate Periods ────────────────────────────────────────────────────
@@ -588,9 +678,13 @@ function getActivePeriod(hotelId, date) {
 }
 
 function calcRoomPrice(room, hotelId, date) {
-  let basePrices = {};
-  try { basePrices = JSON.parse(room.prices || '{}'); } catch(e){}
-  
+  let rawPrices = {};
+  try { rawPrices = JSON.parse(room.prices || '{}'); } catch(e){}
+
+  // Handle both flat and nested formats - extract flat BB prices for backward compat
+  const nested = normalizePrices(room.prices);
+  const basePrices = nested.BB || {};
+
   const { season, surcharge } = getActivePeriods(hotelId, date);
   if (!season && !surcharge) return { prices: basePrices, basePrice: room.price, surcharge: 0, periodName: null, periodType: null };
 
@@ -599,8 +693,8 @@ function calcRoomPrice(room, hotelId, date) {
 
   // If season active and has custom prices, override matching keys
   if (season) {
-    let seasonPrices = {};
-    try { seasonPrices = JSON.parse(season.prices || '{}'); } catch(e){}
+    const seasonNested = normalizePrices(season.prices);
+    const seasonPrices = seasonNested.BB || {};
     if (Object.keys(seasonPrices).length > 0) {
       Object.keys(seasonPrices).forEach(k => { effectivePrices[k] = seasonPrices[k]; });
     }
