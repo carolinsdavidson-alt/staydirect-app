@@ -461,7 +461,18 @@ tr:hover td{background:var(--sand)}
     <div class="modal-body">
       <div class="form-grid">
         <div class="fg full"><label>Отель *</label><select id="r-hotel"></select></div>
-        <div class="fg full"><label>Тип номера *</label><input id="r-type" placeholder="Double Sea View"></div>
+        <div class="fg full"><label>Тип номера *</label>
+          <select id="r-type">
+            <option value="Standard Room">Standard Room — стандарт</option>
+            <option value="Superior Room">Superior Room — улучшенный</option>
+            <option value="Deluxe Room">Deluxe Room — более высокий уровень</option>
+            <option value="Premium Room">Premium Room — премиум</option>
+            <option value="Suite">Suite — люкс</option>
+            <option value="Junior Suite">Junior Suite — полулюкс</option>
+            <option value="Villa">Villa — вилла</option>
+            <option value="Bungalow">Bungalow — бунгало</option>
+            <option value="Tent / Eco Tent">Tent / Eco Tent — тент</option>
+          </select></div>
         <div class="fg"><label>Вид из номера</label>
           <select id="r-view">
             <option>Sea view</option><option>Pool view</option>
