@@ -634,6 +634,14 @@ tr:hover td{background:var(--sand)}
         <div class="fg"><label>DBL</label><input id="s-price-dbl" type="number" min="0" placeholder="—"></div>
         <div class="fg"><label>TPL</label><input id="s-price-tpl" type="number" min="0" placeholder="—"></div>
         <div class="fg"><label>4 PAX</label><input id="s-price-4pax" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+INF (no ex.bed)</label><input id="s-price-dbl-inf" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+INF (1 ex.bed)</label><input id="s-price-dbl-inf-eb" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+CHD (1 ex.bed)</label><input id="s-price-dbl-chd" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+2INF (1 ex.bed)</label><input id="s-price-dbl-2inf" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+INF+CHD (ex.bed)</label><input id="s-price-dbl-inf-chd" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+2CHD (1 ex.bed)</label><input id="s-price-dbl-2chd" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">TPL+INF (no ex.bed)</label><input id="s-price-tpl-inf" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">TPL+2INF (no ex.bed)</label><input id="s-price-tpl-2inf" type="number" min="0" placeholder="—"></div>
       </div>
     </div>
     <div class="modal-foot">
@@ -1472,6 +1480,21 @@ function toggleSurchargeField() {
   });
 }
 
+const SEASON_PRICE_FIELDS = [
+  {id:'s-price-sgl', key:'SGL'},
+  {id:'s-price-dbl', key:'DBL'},
+  {id:'s-price-tpl', key:'TPL'},
+  {id:'s-price-4pax', key:'4PAX'},
+  {id:'s-price-dbl-inf', key:'DBL_INF'},
+  {id:'s-price-dbl-inf-eb', key:'DBL_INF_EB'},
+  {id:'s-price-dbl-chd', key:'DBL_CHD'},
+  {id:'s-price-dbl-2inf', key:'DBL_2INF'},
+  {id:'s-price-dbl-inf-chd', key:'DBL_INF_CHD'},
+  {id:'s-price-dbl-2chd', key:'DBL_2CHD'},
+  {id:'s-price-tpl-inf', key:'TPL_INF'},
+  {id:'s-price-tpl-2inf', key:'TPL_2INF'},
+];
+
 function openSeasonModal(id=null) {
   editingSeasonId = id;
   document.getElementById('modal-season-title').textContent = id ? 'Изменить период' : 'Добавить период';
@@ -1484,12 +1507,12 @@ function openSeasonModal(id=null) {
     document.getElementById('s-to').value = s.dateTo;
     document.getElementById('s-surcharge').value = s.surcharge||'';
     let p = {}; try { p = JSON.parse(s.prices||'{}'); } catch(e){}
-    document.getElementById('s-price-sgl').value = p.SGL||'';
-    document.getElementById('s-price-dbl').value = p.DBL||'';
-    document.getElementById('s-price-tpl').value = p.TPL||'';
-    document.getElementById('s-price-4pax').value = p['4PAX']||'';
+    SEASON_PRICE_FIELDS.forEach(f => {
+      document.getElementById(f.id).value = p[f.key]||'';
+    });
   } else {
-    ['s-name','s-from','s-to','s-surcharge','s-price-sgl','s-price-dbl','s-price-tpl','s-price-4pax'].forEach(i=>document.getElementById(i).value='');
+    ['s-name','s-from','s-to','s-surcharge'].forEach(i=>document.getElementById(i).value='');
+    SEASON_PRICE_FIELDS.forEach(f => document.getElementById(f.id).value='');
     document.getElementById('s-type').value='season';
   }
   toggleSurchargeField();
@@ -1504,14 +1527,10 @@ async function saveSeason() {
   if (!name||!dateFrom||!dateTo) { showToast('Заполните название и даты','error'); return; }
   const type = document.getElementById('s-type').value;
   const prices = {};
-  const sgl = parseFloat(document.getElementById('s-price-sgl').value);
-  const dbl = parseFloat(document.getElementById('s-price-dbl').value);
-  const tpl = parseFloat(document.getElementById('s-price-tpl').value);
-  const fpax = parseFloat(document.getElementById('s-price-4pax').value);
-  if (sgl>0) prices.SGL=sgl;
-  if (dbl>0) prices.DBL=dbl;
-  if (tpl>0) prices.TPL=tpl;
-  if (fpax>0) prices['4PAX']=fpax;
+  SEASON_PRICE_FIELDS.forEach(f => {
+    const v = parseFloat(document.getElementById(f.id).value);
+    if (v > 0) prices[f.key] = v;
+  });
   const data = {
     hotelId: currentHotelDetailId,
     name, type, dateFrom, dateTo, prices,
