@@ -17,6 +17,7 @@
   --gold-light:#FBF4E3;
   --white:#FFFFFF;
   --muted:#6B6760;
+  --coral:#E53935;
   --border:rgba(13,13,11,0.1);
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -192,6 +193,13 @@ section{padding:100px 5%}
   border:1px solid var(--border);border-radius:20px;
   padding:4px 10px;font-size:11px;font-weight:600;color:var(--teal);
 }
+.hotel-season-badge{
+  position:absolute;bottom:14px;left:14px;
+  background:rgba(247,243,236,0.92);backdrop-filter:blur(8px);
+  border:1px solid var(--border);border-radius:20px;
+  padding:4px 10px;font-size:11px;font-weight:500;color:var(--ink);
+  max-width:calc(100% - 28px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .hotel-body{padding:18px}
 .hotel-name{font-size:16px;font-weight:500;margin-bottom:4px}
 .hotel-loc{font-size:12px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:4px}
@@ -243,6 +251,13 @@ section{padding:100px 5%}
 .hm-meta{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}
 .hm-tag{font-size:12px;padding:4px 12px;border-radius:20px;background:var(--sand);color:var(--muted)}
 .hm-tag.green{background:var(--teal-light);color:var(--teal)}
+.hm-season-banner{
+  display:flex;align-items:center;gap:12px;
+  background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:1px solid #c8e6c9;
+  border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:#2e7d32;
+}
+.hm-season-banner.hm-surcharge{background:linear-gradient(135deg,#fce4ec,#fff3e0);border-color:#f8bbd0;color:#c62828}
+.hm-season-icon{font-size:24px}
 .hm-rooms-title{font-size:15px;font-weight:600;margin-bottom:12px}
 .hm-rooms-table{width:100%;border-collapse:collapse;font-size:13px}
 .hm-rooms-table thead{background:var(--sand)}
@@ -750,9 +765,11 @@ let currentPage = 1;
 const perPage = 24;
 
 // Load hotels from API
-async function loadHotels() {
+async function loadHotels(checkin) {
   try {
-    const r = await fetch('/api/public/hotels');
+    let url = '/api/public/hotels';
+    if (checkin) url += '?checkin=' + checkin;
+    const r = await fetch(url);
     if (r.ok) hotels = await r.json();
   } catch(e) {
     console.error('Failed to load hotels:', e);
@@ -783,7 +800,7 @@ function setDefaultDates() {
 }
 
 // Search and filter
-function searchHotels() {
+async function searchHotels() {
   const dest = document.getElementById('dest-filter').value;
   const search = document.getElementById('search-input').value.toLowerCase().trim();
   const checkin = document.getElementById('checkin').value;
@@ -798,6 +815,9 @@ function searchHotels() {
     }
   }
   
+  // Reload hotels with checkin date for seasonal pricing
+  await loadHotels(checkin || null);
+
   let filtered = [...hotels];
   
   // Filter by location
@@ -850,32 +870,46 @@ function renderHotels(list, nights) {
     const getMinPrice = (rooms) => {
       let min = Infinity;
       rooms.forEach(r => {
-        const p = r.prices || {};
+        // Use seasonal prices if available, otherwise base prices
+        const sp = r.seasonPrices || {};
+        const bp = r.prices || {};
+        const p = Object.keys(sp).length ? sp : bp;
         const vals = Object.values(p);
-        if (vals.length) min = Math.min(min, ...vals);
-        else if (r.price > 0) min = Math.min(min, r.price);
+        const surcharge = r.surcharge || 0;
+        if (vals.length) min = Math.min(min, ...vals.map(v => v + surcharge));
+        else if (r.price > 0) min = Math.min(min, r.price + surcharge);
       });
       return min === Infinity ? 0 : min;
     };
     const minPrice = getMinPrice(h.rooms);
+    // Detect active period from first room
+    const activePeriod = h.rooms.length && h.rooms[0].periodName ? h.rooms[0].periodName : null;
+    const activeSurcharge = h.rooms.length && h.rooms[0].surcharge ? h.rooms[0].surcharge : 0;
     const photoStyle = h.photo 
       ? 'background-image:url(' + h.photo + ');background-size:cover;background-position:center'
       : '';
     const formatRoomPrice = (r) => {
-      const p = r.prices || {};
-      const dbl = p.DBL || p.SGL || r.price || 0;
+      const sp = r.seasonPrices || {};
+      const bp = r.prices || {};
+      const p = Object.keys(sp).length ? sp : bp;
+      const surcharge = r.surcharge || 0;
       const hasPrices = Object.keys(p).length > 0;
-      if (!hasPrices) return '<span class="room-price">$' + r.price + '<span>/ночь</span></span>';
+      if (!hasPrices) {
+        const total = (r.price || 0) + surcharge;
+        return '<span class="room-price">$' + total + '<span>/ночь</span></span>';
+      }
       const parts = [];
-      if (p.SGL) parts.push('SGL $' + p.SGL);
-      if (p.DBL) parts.push('DBL $' + p.DBL);
-      if (p.TPL) parts.push('TPL $' + p.TPL);
-      return '<span class="room-price" style="font-size:12px">' + (parts.length ? parts.join(' · ') : '$' + dbl) + '<span>/ночь</span></span>';
+      if (p.SGL) parts.push('SGL $' + (p.SGL + surcharge));
+      if (p.DBL) parts.push('DBL $' + (p.DBL + surcharge));
+      if (p.TPL) parts.push('TPL $' + (p.TPL + surcharge));
+      const fallback = (p.DBL || p.SGL || r.price || 0) + surcharge;
+      return '<span class="room-price" style="font-size:12px">' + (parts.length ? parts.join(' · ') : '$' + fallback) + '<span>/ночь</span></span>';
     };
     return '<div class="hotel-card" onclick="openHotelModal(' + h.id + ')">' +
       '<div class="hotel-img" style="' + photoStyle + '">' +
         (h.photo ? '' : '<span>' + (h.emoji||'🏨') + '</span>') +
         '<div class="hotel-badge">★ ' + h.rating + '</div>' +
+        (activePeriod ? '<div class="hotel-season-badge">' + (activeSurcharge > 0 ? '🎄' : '🌞') + ' ' + escH(activePeriod) + (activeSurcharge > 0 ? ' +$' + activeSurcharge + '/ночь' : '') + '</div>' : '') +
       '</div>' +
       '<div class="hotel-body">' +
         '<div class="hotel-name">' + escH(h.name) + '</div>' +
@@ -960,7 +994,9 @@ function openHotelModal(hotelId) {
   // Collect all accommodation keys used across all rooms
   const allKeys = new Set();
   h.rooms.forEach(r => {
-    const p = r.prices || {};
+    const sp = r.seasonPrices || {};
+    const bp = r.prices || {};
+    const p = Object.keys(sp).length ? sp : bp;
     Object.keys(p).forEach(k => allKeys.add(k));
   });
   const accomKeys = ACCOM_ORDER.filter(k => allKeys.has(k));
@@ -973,6 +1009,12 @@ function openHotelModal(hotelId) {
     nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / 86400000));
   }
 
+  // Detect active period and surcharge
+  const modalPeriodName = h.rooms.length && h.rooms[0].periodName ? h.rooms[0].periodName : null;
+  const modalPeriodType = h.rooms.length && h.rooms[0].periodType ? h.rooms[0].periodType : null;
+  const modalSurcharge = h.rooms.length && h.rooms[0].surcharge ? h.rooms[0].surcharge : 0;
+  const modalSeasonName = h.rooms.length && h.rooms[0].seasonName ? h.rooms[0].seasonName : null;
+
   // Build table header
   const thAccom = accomKeys.map(k => 
     '<th>' + (k === '_base' ? 'Цена' : escH(ACCOM_LABELS[k] || k)) + '</th>'
@@ -980,11 +1022,19 @@ function openHotelModal(hotelId) {
 
   // Build room rows
   const roomRows = h.rooms.map(r => {
-    const p = r.prices || {};
+    const sp = r.seasonPrices || {};
+    const bp = r.prices || {};
+    const p = Object.keys(sp).length ? sp : bp;
+    const surcharge = r.surcharge || 0;
     const priceCells = accomKeys.map(k => {
-      if (k === '_base') return '<td class="hm-price-cell"><span class="hm-price-tag">$' + r.price + '</span></td>';
+      if (k === '_base') {
+        const total = (r.price || 0) + surcharge;
+        return '<td class="hm-price-cell"><span class="hm-price-tag">$' + total + '</span></td>';
+      }
       const v = p[k];
-      return '<td class="hm-price-cell">' + (v ? '<span class="hm-price-tag">$' + v + '</span>' : '<span class="hm-price-tag empty">—</span>') + '</td>';
+      if (!v) return '<td class="hm-price-cell"><span class="hm-price-tag empty">—</span></td>';
+      const total = v + surcharge;
+      return '<td class="hm-price-cell"><span class="hm-price-tag">$' + total + '</span></td>';
     }).join('');
     const bf = r.breakfast || 'RO';
     const bfDisplay = (bf === '1' || bf === '1.0') ? 'BB' : (bf === '0' ? 'RO' : bf);
@@ -1015,7 +1065,23 @@ function openHotelModal(hotelId) {
         (checkin && checkout ? '<span class="hm-tag">' + formatDate(checkin) + ' – ' + formatDate(checkout) + ' (' + nights + ' ночей)</span>' : '') +
       '</div>' +
       (h.desc ? '<p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:20px">' + escH(h.desc) + '</p>' : '') +
-      '<div class="hm-rooms-title">Номера и цены ($/ночь)</div>' +
+      (modalPeriodName || modalSeasonName ? (function(){
+        var banners = '';
+        if (modalSeasonName && modalPeriodType !== 'season') {
+          banners += '<div class="hm-season-banner"><span class="hm-season-icon">🌞</span><div><strong>' + escH(modalSeasonName) + '</strong><div style="font-size:12px;margin-top:2px">Цены отражают сезонный тариф</div></div></div>';
+        }
+        if (modalPeriodName) {
+          var isSurcharge = modalPeriodType === 'surcharge';
+          banners += '<div class="hm-season-banner ' + (isSurcharge ? 'hm-surcharge' : '') + '">' +
+            '<span class="hm-season-icon">' + (isSurcharge ? '🎄' : '🌞') + '</span>' +
+            '<div><strong>' + escH(modalPeriodName) + '</strong>' +
+            (modalSurcharge > 0 ? '<div style="font-size:12px;margin-top:2px">Доплата: <strong>+$' + modalSurcharge + '</strong> за ночь к каждому номеру</div>' : '') +
+            (!isSurcharge ? '<div style="font-size:12px;margin-top:2px">Цены отражают сезонный тариф</div>' : '') +
+            '</div></div>';
+        }
+        return banners;
+      })() : '') +
+      '<div class="hm-rooms-title">Номера и цены ($/ночь)' + (modalSurcharge > 0 ? ' <span style="font-size:12px;color:var(--coral);font-weight:400">вкл. доплату +$' + modalSurcharge + '</span>' : '') + '</div>' +
       '<div style="overflow-x:auto">' +
       '<table class="hm-rooms-table">' +
         '<thead><tr><th>Тип номера</th><th>Вид</th><th>Питание</th><th>Гост.</th>' + thAccom + '</tr></thead>' +

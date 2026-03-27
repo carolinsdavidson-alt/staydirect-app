@@ -76,6 +76,19 @@ db.exec(`
     createdAt TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS rate_periods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hotelId INTEGER DEFAULT 0,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'season',
+    dateFrom TEXT NOT NULL,
+    dateTo TEXT NOT NULL,
+    prices TEXT DEFAULT '{}',
+    surcharge REAL DEFAULT 0,
+    status TEXT DEFAULT 'active',
+    FOREIGN KEY (hotelId) REFERENCES hotels(id)
+  );
+
   CREATE TABLE IF NOT EXISTS api_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     time TEXT DEFAULT (datetime('now')),
@@ -310,6 +323,54 @@ app.patch('/api/admin/keys/:id/revoke', (req, res) => {
   }
 });
 
+// ─── Rate Periods ────────────────────────────────────────────────────
+app.get('/api/admin/rate-periods', (req, res) => {
+  try {
+    const periods = db.prepare('SELECT * FROM rate_periods ORDER BY dateFrom').all();
+    res.json(periods);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/rate-periods', (req, res) => {
+  try {
+    const { hotelId, name, type, dateFrom, dateTo, prices, surcharge, status } = req.body;
+    if (!name || !dateFrom || !dateTo) return res.status(400).json({ error: 'name, dateFrom, dateTo required' });
+    const pricesJson = typeof prices === 'object' ? JSON.stringify(prices) : (prices || '{}');
+    const result = db.prepare(
+      `INSERT INTO rate_periods (hotelId, name, type, dateFrom, dateTo, prices, surcharge, status) VALUES (?,?,?,?,?,?,?,?)`
+    ).run(hotelId || 0, name, type || 'season', dateFrom, dateTo, pricesJson, surcharge || 0, status || 'active');
+    const row = db.prepare('SELECT * FROM rate_periods WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(row);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/admin/rate-periods/:id', (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM rate_periods WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    const { hotelId, name, type, dateFrom, dateTo, prices, surcharge, status } = req.body;
+    const pricesJson = prices ? (typeof prices === 'object' ? JSON.stringify(prices) : prices) : existing.prices;
+    db.prepare(
+      `UPDATE rate_periods SET hotelId=?, name=?, type=?, dateFrom=?, dateTo=?, prices=?, surcharge=?, status=? WHERE id=?`
+    ).run(
+      hotelId ?? existing.hotelId, name ?? existing.name, type ?? existing.type,
+      dateFrom ?? existing.dateFrom, dateTo ?? existing.dateTo,
+      pricesJson, surcharge ?? existing.surcharge, status ?? existing.status, req.params.id
+    );
+    const row = db.prepare('SELECT * FROM rate_periods WHERE id = ?').get(req.params.id);
+    res.json(row);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/admin/rate-periods/:id', (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM rate_periods WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    db.prepare('DELETE FROM rate_periods WHERE id = ?').run(req.params.id);
+    res.json({ success: true, id: Number(req.params.id) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Bookings ────────────────────────────────────────────────────────
 app.get('/api/admin/bookings', (req, res) => {
   try {
@@ -482,23 +543,97 @@ app.post('/api/v1/bookings', requireApiKey, (req, res) => {
   }
 });
 
+// ─── Price calculation helper ──────────────────────────────────────
+function getActivePeriods(hotelId, date) {
+  // Returns { season, surcharge } — both can be active simultaneously
+  const d = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+  const q = "SELECT * FROM rate_periods WHERE (hotelId = ? OR hotelId = 0) AND status = 'active' AND dateFrom <= ? AND dateTo >= ? ORDER BY hotelId DESC";
+  const all = db.prepare(q).all(hotelId, d, d);
+  // Hotel-specific overrides global; pick best season and best surcharge
+  let season = null, surcharge = null;
+  for (const p of all) {
+    if (p.type === 'season' && !season) season = p;
+    if (p.type === 'surcharge' && !surcharge) surcharge = p;
+  }
+  return { season, surcharge };
+}
+
+// Legacy compat wrapper
+function getActivePeriod(hotelId, date) {
+  const { season, surcharge } = getActivePeriods(hotelId, date);
+  return surcharge || season || null;
+}
+
+function calcRoomPrice(room, hotelId, date) {
+  let basePrices = {};
+  try { basePrices = JSON.parse(room.prices || '{}'); } catch(e){}
+  
+  const { season, surcharge } = getActivePeriods(hotelId, date);
+  if (!season && !surcharge) return { prices: basePrices, basePrice: room.price, surcharge: 0, periodName: null, periodType: null };
+
+  // Start with base prices
+  const effectivePrices = { ...basePrices };
+
+  // If season active and has custom prices, override matching keys
+  if (season) {
+    let seasonPrices = {};
+    try { seasonPrices = JSON.parse(season.prices || '{}'); } catch(e){}
+    if (Object.keys(seasonPrices).length > 0) {
+      Object.keys(seasonPrices).forEach(k => { effectivePrices[k] = seasonPrices[k]; });
+    }
+  }
+
+  const surchargeAmt = surcharge ? (surcharge.surcharge || 0) : 0;
+  const basePrice = effectivePrices.DBL || effectivePrices.SGL || Object.values(effectivePrices)[0] || room.price;
+
+  // Display name: prefer surcharge name (holiday), fall back to season
+  const displayPeriod = surcharge || season;
+
+  return {
+    prices: effectivePrices,
+    basePrice: basePrice + surchargeAmt,
+    surcharge: surchargeAmt,
+    periodName: displayPeriod ? displayPeriod.name : null,
+    periodType: displayPeriod ? displayPeriod.type : null,
+    seasonName: season ? season.name : null
+  };
+}
+
 // ─── Public API for landing page (no key required) ─────────────────
 app.get('/api/public/hotels', (req, res) => {
   try {
     const hotels = db.prepare('SELECT * FROM hotels WHERE status = ?').all('active');
     const rooms = db.prepare('SELECT * FROM rooms WHERE status = ?').all('active');
+    const periods = db.prepare("SELECT * FROM rate_periods WHERE status = 'active' ORDER BY dateFrom").all();
+    const checkin = req.query.checkin || new Date().toISOString().split('T')[0];
+    
     const result = hotels.map(h => ({
       ...h,
       rooms: rooms.filter(r => r.hotelId === h.id).map(r => {
         let prices = {};
         try { prices = JSON.parse(r.prices || '{}'); } catch(e){}
-        return { type: r.type, view: r.view, price: r.price, prices, breakfast: r.breakfast, capacity: r.capacity };
-      })
+        const calc = calcRoomPrice(r, h.id, checkin);
+        return {
+          type: r.type, view: r.view, price: r.price, prices,
+          breakfast: r.breakfast, capacity: r.capacity,
+          seasonPrice: calc.basePrice, seasonPrices: calc.prices,
+          surcharge: calc.surcharge, periodName: calc.periodName, periodType: calc.periodType,
+          seasonName: calc.seasonName
+        };
+      }),
+      ratePeriods: periods.filter(p => p.hotelId === h.id || p.hotelId === 0)
     }));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/public/rate-periods', (req, res) => {
+  try {
+    const periods = db.prepare("SELECT * FROM rate_periods WHERE status = 'active' ORDER BY dateFrom").all();
+    res.json(periods);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── HTML routes ─────────────────────────────────────────────────────

@@ -295,6 +295,7 @@ tr:hover td{background:var(--sand)}
       <div class="nav-item" data-page="hotels" onclick="showPage('hotels',this)"><span class="icon">🏨</span>Отели</div>
       <div class="nav-item" data-page="rooms" onclick="showPage('rooms',this)"><span class="icon">🛏</span>Номера</div>
       <div class="nav-item" data-page="prices" onclick="showPage('prices',this)"><span class="icon">💰</span>Цены</div>
+      <div class="nav-item" data-page="seasons" onclick="showPage('seasons',this)"><span class="icon">📅</span>Сезоны</div>
       <div class="sidebar-section">Операторы</div>
       <div class="nav-item" data-page="keys" onclick="showPage('keys',this)"><span class="icon">🔑</span>API ключи</div>
       <div class="nav-item" data-page="bookings" onclick="showPage('bookings',this)"><span class="icon">📋</span>Бронирования</div>
@@ -374,6 +375,24 @@ tr:hover td{background:var(--sand)}
             <input class="search-input" id="price-search" placeholder="Поиск по отелю или номеру..." oninput="filterPrices()">
           </div>
           <div class="price-grid" id="prices-grid"><div class="loading-spinner">Загрузка...</div></div>
+        </div>
+
+        <!-- SEASONS -->
+        <div id="page-seasons" class="page">
+          <div style="margin-bottom:24px">
+            <div style="font-size:15px;font-weight:500;margin-bottom:4px">Сезонные цены и праздничные доплаты</div>
+            <div style="font-size:13px;color:var(--muted)">Сезоны меняют базовые цены номеров. Доплаты (Новый Год, Рождество) прибавляются к сезонной цене. Если отель = «Все отели», период действует глобально.</div>
+          </div>
+          <div class="search-bar" style="margin-bottom:16px">
+            <button class="btn btn-green" onclick="openSeasonModal()">❎ Добавить период</button>
+            <button class="btn btn-outline" onclick="seedDefaultSeasons()">📅 Создать стандартные сезоны</button>
+          </div>
+          <div class="card">
+            <table>
+              <thead><tr><th>Название</th><th>Тип</th><th>Отель</th><th>Даты</th><th>Доплата</th><th>Статус</th><th>Действия</th></tr></thead>
+              <tbody id="seasons-table"><tr><td colspan="7" class="loading-spinner">Загрузка...</td></tr></tbody>
+            </table>
+          </div>
         </div>
 
         <!-- API KEYS -->
@@ -540,6 +559,39 @@ tr:hover td{background:var(--sand)}
   </div>
 </div>
 
+<!-- MODAL: Season/Period -->
+<div class="overlay" id="modal-season">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><div class="modal-title" id="modal-season-title">Добавить период</div><button class="modal-close" onclick="closeModal('modal-season')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg full"><label>Название *</label><input id="s-name" placeholder="напр. High Season 2026"></div>
+        <div class="fg"><label>Тип *</label>
+          <select id="s-type" onchange="toggleSurchargeField()">
+            <option value="season">🌞 Сезон (свои цены)</option>
+            <option value="surcharge">🎄 Доплата (праздник)</option>
+          </select>
+        </div>
+        <div class="fg"><label>Отель</label>
+          <select id="s-hotel"><option value="0">🌍 Все отели (глобально)</option></select>
+        </div>
+        <div class="fg"><label>Дата начала *</label><input id="s-from" type="date"></div>
+        <div class="fg"><label>Дата окончания *</label><input id="s-to" type="date"></div>
+        <div class="fg" id="s-surcharge-wrap"><label>Доплата $/ночь</label><input id="s-surcharge" type="number" min="0" placeholder="напр. 30"></div>
+        <div class="section-divider" id="s-prices-divider">💰 Цены сезона (опционально — перезаписывают базовые)</div>
+        <div class="fg"><label>SGL</label><input id="s-price-sgl" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label>DBL</label><input id="s-price-dbl" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label>TPL</label><input id="s-price-tpl" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label>4 PAX</label><input id="s-price-4pax" type="number" min="0" placeholder="—"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('modal-season')">Отмена</button>
+      <button class="btn btn-green" id="save-season-btn" onclick="saveSeason()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -613,7 +665,7 @@ function doLogout() {
 // ═══════════════════════════════
 const pageTitles = {
   dashboard:'Дашборд', hotels:'Отели', rooms:'Номера',
-  prices:'Цены', keys:'API ключи', bookings:'Бронирования', log:'Статистика'
+  prices:'Цены', seasons:'Сезоны и доплаты', keys:'API ключи', bookings:'Бронирования', log:'Статистика'
 };
 
 function showPage(p, el) {
@@ -630,6 +682,7 @@ function loadPage(p) {
   else if(p==='hotels') loadHotels();
   else if(p==='rooms') loadRooms();
   else if(p==='prices') loadPrices();
+  else if(p==='seasons') loadSeasons();
   else if(p==='keys') loadKeys();
   else if(p==='bookings') loadBookings();
   else if(p==='log') loadLog();
@@ -1181,6 +1234,151 @@ async function loadLog() {
           <td><span class="badge badge-${l.statusCode===200?'green':'red'}">${l.statusCode} ${l.statusCode===200?'OK':'ERR'}</span></td>
         </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Нет запросов</td></tr>';
+  } catch(err) { showToast('Ошибка: '+err.message,'error'); }
+}
+
+// ═══════════════════════════════
+// SEASONS / RATE PERIODS
+// ═══════════════════════════════
+let seasonsCache = [];
+let editingSeasonId = null;
+
+async function loadSeasons() {
+  try {
+    seasonsCache = await API.get('/api/admin/rate-periods');
+    hotelsCache = await API.get('/api/admin/hotels');
+    renderSeasons();
+  } catch(err) { showToast('Ошибка: '+err.message,'error'); }
+}
+
+function renderSeasons() {
+  const typeLabels = {season:'🌞 Сезон', surcharge:'🎄 Доплата'};
+  const typeColors = {season:'green', surcharge:'amber'};
+  document.getElementById('seasons-table').innerHTML = seasonsCache.length ? seasonsCache.map(s => {
+    const h = s.hotelId ? hotelById(s.hotelId) : null;
+    const hotelName = s.hotelId === 0 ? '🌍 Все отели' : (h ? escHtml(h.name) : 'Отель #'+s.hotelId);
+    const today = new Date().toISOString().split('T')[0];
+    const isActive = s.status==='active' && s.dateFrom<=today && s.dateTo>=today;
+    return `<tr>
+      <td><strong>${escHtml(s.name)}</strong></td>
+      <td><span class="badge badge-${typeColors[s.type]||'green'}">${typeLabels[s.type]||s.type}</span></td>
+      <td style="font-size:12px">${hotelName}</td>
+      <td style="font-size:12px;white-space:nowrap">${s.dateFrom} → ${s.dateTo}</td>
+      <td>${s.type==='surcharge' ? '<strong style="color:var(--coral)">+$'+s.surcharge+'/ночь</strong>' : '—'}</td>
+      <td><span class="badge badge-${isActive?'green':s.status==='active'?'amber':'red'}">${isActive?'Активен':s.status==='active'?'Ожидает':'Откл.'}</span></td>
+      <td>
+        <div class="actions-cell">
+          <button class="btn btn-outline btn-sm" onclick="editSeason(${s.id})">Изменить</button>
+          <button class="btn btn-red btn-sm" onclick="deleteSeason(${s.id})">Удалить</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Нет периодов. Нажмите «Создать стандартные сезоны» для быстрого старта.</td></tr>';
+}
+
+function toggleSurchargeField() {
+  const t = document.getElementById('s-type').value;
+  document.getElementById('s-surcharge-wrap').style.display = t==='surcharge'?'':'none';
+  document.getElementById('s-prices-divider').style.display = t==='season'?'':'none';
+  document.querySelectorAll('#modal-season [id^="s-price-"]').forEach(el => {
+    el.closest('.fg').style.display = t==='season'?'':'none';
+  });
+}
+
+function openSeasonModal(id=null) {
+  editingSeasonId = id;
+  document.getElementById('modal-season-title').textContent = id ? 'Изменить период' : 'Добавить период';
+  // Fill hotel select
+  const sel = document.getElementById('s-hotel');
+  sel.innerHTML = '<option value="0">🌍 Все отели (глобально)</option>' + hotelsCache.map(h=>`<option value="${h.id}">${escHtml(h.name)}</option>`).join('');
+  if (id) {
+    const s = seasonsCache.find(x=>x.id===id);
+    document.getElementById('s-name').value = s.name;
+    document.getElementById('s-type').value = s.type;
+    sel.value = s.hotelId;
+    document.getElementById('s-from').value = s.dateFrom;
+    document.getElementById('s-to').value = s.dateTo;
+    document.getElementById('s-surcharge').value = s.surcharge||'';
+    let p = {}; try { p = JSON.parse(s.prices||'{}'); } catch(e){}
+    document.getElementById('s-price-sgl').value = p.SGL||'';
+    document.getElementById('s-price-dbl').value = p.DBL||'';
+    document.getElementById('s-price-tpl').value = p.TPL||'';
+    document.getElementById('s-price-4pax').value = p['4PAX']||'';
+  } else {
+    ['s-name','s-from','s-to','s-surcharge','s-price-sgl','s-price-dbl','s-price-tpl','s-price-4pax'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('s-type').value='season';
+  }
+  toggleSurchargeField();
+  document.getElementById('modal-season').classList.add('open');
+}
+function editSeason(id) { openSeasonModal(id); }
+
+async function saveSeason() {
+  const name = document.getElementById('s-name').value.trim();
+  const dateFrom = document.getElementById('s-from').value;
+  const dateTo = document.getElementById('s-to').value;
+  if (!name||!dateFrom||!dateTo) { showToast('Заполните название и даты','error'); return; }
+  const type = document.getElementById('s-type').value;
+  const prices = {};
+  const sgl = parseFloat(document.getElementById('s-price-sgl').value);
+  const dbl = parseFloat(document.getElementById('s-price-dbl').value);
+  const tpl = parseFloat(document.getElementById('s-price-tpl').value);
+  const fpax = parseFloat(document.getElementById('s-price-4pax').value);
+  if (sgl>0) prices.SGL=sgl;
+  if (dbl>0) prices.DBL=dbl;
+  if (tpl>0) prices.TPL=tpl;
+  if (fpax>0) prices['4PAX']=fpax;
+  const data = {
+    hotelId: parseInt(document.getElementById('s-hotel').value)||0,
+    name, type, dateFrom, dateTo, prices,
+    surcharge: parseFloat(document.getElementById('s-surcharge').value)||0,
+    status: 'active'
+  };
+  try {
+    const btn = document.getElementById('save-season-btn');
+    btn.disabled=true; btn.textContent='Сохранение...';
+    if (editingSeasonId) {
+      await API.put('/api/admin/rate-periods/'+editingSeasonId, data);
+      showToast('Период обновлён!','success');
+    } else {
+      await API.post('/api/admin/rate-periods', data);
+      showToast('Период добавлен!','success');
+    }
+    closeModal('modal-season');
+    btn.disabled=false; btn.textContent='Сохранить';
+    loadSeasons();
+  } catch(err) {
+    document.getElementById('save-season-btn').disabled=false;
+    document.getElementById('save-season-btn').textContent='Сохранить';
+    showToast('Ошибка: '+err.message,'error');
+  }
+}
+
+async function deleteSeason(id) {
+  if (!confirm('Удалить период?')) return;
+  try {
+    await API.del('/api/admin/rate-periods/'+id);
+    showToast('Период удалён','success');
+    loadSeasons();
+  } catch(err) { showToast('Ошибка: '+err.message,'error'); }
+}
+
+async function seedDefaultSeasons() {
+  if (!confirm('Создать 4 стандартных сезона + 2 праздничных доплаты?')) return;
+  const defaults = [
+    {name:'Low Season 2026', type:'season', dateFrom:'2026-05-01', dateTo:'2026-09-30', hotelId:0, prices:{}, surcharge:0},
+    {name:'Mid Season 2026', type:'season', dateFrom:'2026-10-01', dateTo:'2026-11-30', hotelId:0, prices:{}, surcharge:0},
+    {name:'High Season 2026-27', type:'season', dateFrom:'2026-12-01', dateTo:'2027-03-31', hotelId:0, prices:{}, surcharge:0},
+    {name:'Peak Season 2027', type:'season', dateFrom:'2027-01-15', dateTo:'2027-02-28', hotelId:0, prices:{}, surcharge:0},
+    {name:'Christmas 2026', type:'surcharge', dateFrom:'2026-12-20', dateTo:'2026-12-26', hotelId:0, prices:{}, surcharge:25},
+    {name:'New Year 2027', type:'surcharge', dateFrom:'2026-12-27', dateTo:'2027-01-05', hotelId:0, prices:{}, surcharge:35},
+  ];
+  try {
+    for (const d of defaults) {
+      await API.post('/api/admin/rate-periods', {...d, status:'active'});
+    }
+    showToast('6 периодов создано!','success');
+    loadSeasons();
   } catch(err) { showToast('Ошибка: '+err.message,'error'); }
 }
 
