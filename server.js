@@ -85,8 +85,7 @@ db.exec(`
     dateTo TEXT NOT NULL,
     prices TEXT DEFAULT '{}',
     surcharge REAL DEFAULT 0,
-    status TEXT DEFAULT 'active',
-    FOREIGN KEY (hotelId) REFERENCES hotels(id)
+    status TEXT DEFAULT 'active'
   );
 
   CREATE TABLE IF NOT EXISTS api_log (
@@ -98,6 +97,30 @@ db.exec(`
     statusCode INTEGER DEFAULT 200
   );
 `);
+
+// Migration: recreate rate_periods without FK constraint (hotelId=0 = global)
+try {
+  const hasFK = db.prepare("SELECT sql FROM sqlite_master WHERE name='rate_periods'").get();
+  if (hasFK && hasFK.sql && hasFK.sql.includes('FOREIGN KEY')) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS rate_periods_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hotelId INTEGER DEFAULT 0,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'season',
+        dateFrom TEXT NOT NULL,
+        dateTo TEXT NOT NULL,
+        prices TEXT DEFAULT '{}',
+        surcharge REAL DEFAULT 0,
+        status TEXT DEFAULT 'active'
+      );
+      INSERT INTO rate_periods_new SELECT * FROM rate_periods;
+      DROP TABLE rate_periods;
+      ALTER TABLE rate_periods_new RENAME TO rate_periods;
+    `);
+    console.log('Migrated rate_periods: removed FK constraint');
+  }
+} catch(e) { console.log('rate_periods migration:', e.message); }
 
 // ─── API Key middleware ──────────────────────────────────────────────
 function requireApiKey(req, res, next) {
