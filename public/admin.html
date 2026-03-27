@@ -1107,6 +1107,10 @@ function switchRoomsTab(tab) {
     if (el) el.style.display = (t === tab) ? '' : 'none';
     if (btn) btn.classList.toggle('active', t === tab);
   });
+  // Reload price matrix when switching to it (seasons may have changed)
+  if (tab === 'matrix' && currentHotelDetailId) {
+    loadPriceMatrix(currentHotelDetailId);
+  }
 }
 
 async function loadRmSeasons(hotelId) {

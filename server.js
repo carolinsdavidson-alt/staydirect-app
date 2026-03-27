@@ -387,10 +387,14 @@ app.get('/api/admin/hotels/:id/price-matrix', (req, res) => {
     try { mealPlans = JSON.parse(hotel.mealPlans || '["BB"]'); } catch(e) { mealPlans = ['BB']; }
 
     // Normalize prices to nested meal plan format
-    const roomsOut = rooms.map(r => ({
-      id: r.id, type: r.type, view: r.view, capacity: r.capacity,
-      prices: normalizePrices(r.prices)
-    }));
+    const roomsOut = rooms.map(r => {
+      let prices = normalizePrices(r.prices);
+      // Fallback: if prices is empty but room has a base price, put it in BB.DBL
+      if (Object.keys(prices).length === 0 && r.price > 0) {
+        prices = { BB: { DBL: r.price } };
+      }
+      return { id: r.id, type: r.type, view: r.view, capacity: r.capacity, prices };
+    });
     const periodsOut = periods.map(p => ({
       id: p.id, name: p.name, type: p.type,
       dateFrom: p.dateFrom, dateTo: p.dateTo,
