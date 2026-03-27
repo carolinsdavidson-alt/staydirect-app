@@ -41,7 +41,7 @@ db.exec(`
     price REAL NOT NULL,
     capacity INTEGER DEFAULT 2,
     minNights INTEGER DEFAULT 1,
-    breakfast INTEGER DEFAULT 1,
+    breakfast TEXT DEFAULT 'BB',
     cancel INTEGER DEFAULT 1,
     status TEXT DEFAULT 'active',
     FOREIGN KEY (hotelId) REFERENCES hotels(id)
@@ -210,7 +210,7 @@ app.post('/api/admin/rooms', (req, res) => {
     const result = db.prepare(
       `INSERT INTO rooms (hotelId, type, view, beds, price, capacity, minNights, breakfast, cancel, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(hotelId, type, view || 'Sea view', beds || 'Double', price, capacity || 2, minNights || 1, breakfast ?? 1, cancel ?? 1, status || 'active');
+    ).run(hotelId, type, view || 'Sea view', beds || 'DBL', price, capacity || 2, minNights || 1, breakfast || 'BB', cancel ?? 1, status || 'active');
     const room = db.prepare('SELECT * FROM rooms WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(room);
   } catch (err) {

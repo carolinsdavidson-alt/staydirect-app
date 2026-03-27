@@ -39,7 +39,7 @@ db.exec(`
     price REAL NOT NULL,
     capacity INTEGER DEFAULT 2,
     minNights INTEGER DEFAULT 1,
-    breakfast INTEGER DEFAULT 1,
+    breakfast TEXT DEFAULT 'BB',
     cancel INTEGER DEFAULT 1,
     status TEXT DEFAULT 'active',
     FOREIGN KEY (hotelId) REFERENCES hotels(id)
@@ -121,7 +121,7 @@ const seedAll = db.transaction(() => {
 
   // Rooms
   for (const r of data.rooms || []) {
-    insertRoom.run(r.id, r.hotelId, r.type, r.view || 'Sea view', r.beds || 'Double', r.price, r.capacity || 2, r.minNights || 1, r.breakfast ?? 1, r.cancel ?? 1, r.status || 'active');
+    insertRoom.run(r.id, r.hotelId, r.type, r.view || 'Sea view', r.beds || 'DBL', r.price, r.capacity || 2, r.minNights || 1, r.breakfast || 'BB', r.cancel ?? 1, r.status || 'active');
   }
 
   // Keys — map `limit` from seed data to `limitReq` column

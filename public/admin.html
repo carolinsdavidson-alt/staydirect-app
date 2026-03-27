@@ -488,8 +488,14 @@ tr:hover td{background:var(--sand)}
         <div class="fg"><label>Цена за ночь ($) *</label><input id="r-price" type="number" min="1" placeholder="39"></div>
         <div class="fg"><label>Вместимость (чел.)</label><input id="r-capacity" type="number" min="1" value="2"></div>
         <div class="fg"><label>Мин. ночей</label><input id="r-minnights" type="number" min="1" value="1"></div>
-        <div class="fg"><label>Завтрак включён</label>
-          <select id="r-breakfast"><option value="1">Да</option><option value="0">Нет</option></select>
+        <div class="fg"><label>Тип питания</label>
+          <select id="r-breakfast">
+            <option value="BB">BB (Bed & Breakfast)</option>
+            <option value="HB">HB (Half Board)</option>
+            <option value="FB">FB (Full Board)</option>
+            <option value="AI">AI (All Inclusive)</option>
+            <option value="RO">RO (Room Only)</option>
+          </select>
         </div>
         <div class="fg"><label>Можно отменить</label>
           <select id="r-cancel"><option value="1">Да</option><option value="0">Нет</option></select>
@@ -963,7 +969,7 @@ function renderPricesGrid() {
     return `<div class="price-card">
       <div class="pc-hotel">${h?(h.photo?'<img src="'+escHtml(h.photo)+'" style="width:28px;height:20px;object-fit:cover;border-radius:3px;vertical-align:middle;margin-right:4px">':escHtml(h.emoji)+' ')+escHtml(h.name):'—'}</div>
       <div class="pc-room">${escHtml(r.type)}</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${escHtml(r.view)} · ${r.capacity} чел. · ${r.breakfast?'✓ Завтрак':''}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${escHtml(r.view)} · ${r.capacity} чел. · ${r.breakfast && r.breakfast!=='0' && r.breakfast!=='RO' ? escHtml(typeof r.breakfast==='number'?(r.breakfast?'BB':'RO'):r.breakfast) : 'RO'}</div>
       <div class="pc-price-row">
         <label>Цена/ночь $</label>
         <input class="price-input" type="number" min="1" value="${r.price}" id="price-${r.id}" onkeydown="if(event.key==='Enter')savePrice(${r.id})">
