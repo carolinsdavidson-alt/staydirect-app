@@ -141,6 +141,10 @@ tr:hover td{background:var(--sand)}
 .badge-amber{background:var(--amber-l);color:var(--amber)}
 .badge-red{background:var(--coral-l);color:var(--coral)}
 .actions-cell{display:flex;gap:6px}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border2)}
+.tab{padding:10px 20px;font-size:14px;font-weight:500;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal)}
 
 /* ── MODAL ── */
 .overlay{
@@ -295,7 +299,7 @@ tr:hover td{background:var(--sand)}
       <div class="nav-item" data-page="hotels" onclick="showPage('hotels',this)"><span class="icon">🏨</span>Отели</div>
       <div class="nav-item" data-page="rooms" onclick="showPage('rooms',this)"><span class="icon">🛏</span>Номера</div>
       <div class="nav-item" data-page="prices" onclick="showPage('prices',this)"><span class="icon">💰</span>Цены</div>
-      <div class="nav-item" data-page="seasons" onclick="showPage('seasons',this)"><span class="icon">📅</span>Сезоны</div>
+
       <div class="sidebar-section">Операторы</div>
       <div class="nav-item" data-page="keys" onclick="showPage('keys',this)"><span class="icon">🔑</span>API ключи</div>
       <div class="nav-item" data-page="bookings" onclick="showPage('bookings',this)"><span class="icon">📋</span>Бронирования</div>
@@ -377,21 +381,42 @@ tr:hover td{background:var(--sand)}
           <div class="price-grid" id="prices-grid"><div class="loading-spinner">Загрузка...</div></div>
         </div>
 
-        <!-- SEASONS -->
-        <div id="page-seasons" class="page">
-          <div style="margin-bottom:24px">
-            <div style="font-size:15px;font-weight:500;margin-bottom:4px">Сезонные цены и праздничные доплаты</div>
-            <div style="font-size:13px;color:var(--muted)">Сезоны меняют базовые цены номеров. Доплаты (Новый Год, Рождество) прибавляются к сезонной цене. Если отель = «Все отели», период действует глобально.</div>
+        <!-- HOTEL DETAIL (per-hotel view with tabs) -->
+        <div id="page-hotel-detail" class="page">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+            <button class="btn btn-outline btn-sm" onclick="showPage('hotels',document.querySelector('[data-page=hotels]'))">← Назад</button>
+            <div>
+              <div style="font-size:18px;font-weight:600" id="hd-hotel-name"></div>
+              <div style="font-size:13px;color:var(--muted)" id="hd-hotel-loc"></div>
+            </div>
           </div>
-          <div class="search-bar" style="margin-bottom:16px">
-            <button class="btn btn-green" onclick="openSeasonModal()">❎ Добавить период</button>
-            <button class="btn btn-outline" onclick="seedDefaultSeasons()">📅 Создать стандартные сезоны</button>
+          <div class="tabs" style="margin-bottom:20px">
+            <button class="tab active" id="tab-hd-rooms" onclick="switchHdTab('rooms')">🛏 Номера <span id="hd-rooms-count" style="font-size:11px;color:var(--muted)"></span></button>
+            <button class="tab" id="tab-hd-seasons" onclick="switchHdTab('seasons')">📅 Сезоны <span id="hd-seasons-count" style="font-size:11px;color:var(--muted)"></span></button>
           </div>
-          <div class="card">
-            <table>
-              <thead><tr><th>Название</th><th>Тип</th><th>Отель</th><th>Даты</th><th>Доплата</th><th>Статус</th><th>Действия</th></tr></thead>
-              <tbody id="seasons-table"><tr><td colspan="7" class="loading-spinner">Загрузка...</td></tr></tbody>
-            </table>
+          <!-- Rooms tab -->
+          <div id="hd-tab-rooms">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+              <button class="btn btn-green" onclick="openRoomModal()">+ Добавить номер</button>
+            </div>
+            <div class="card">
+              <table><thead><tr><th>Тип номера</th><th>Вид</th><th>Питание</th><th>Вмест.</th><th>Цены ($/ночь)</th><th>Статус</th><th>Действия</th></tr></thead>
+              <tbody id="hd-rooms-table"><tr><td colspan="7" class="loading-spinner">Загрузка...</td></tr></tbody></table>
+            </div>
+          </div>
+          <!-- Seasons tab -->
+          <div id="hd-tab-seasons" style="display:none">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Сезоны меняют базовые цены номеров. Доплаты (Новый Год, Рождество) прибавляются к сезонной цене.</div>
+            <div style="display:flex;gap:8px;margin-bottom:16px">
+              <button class="btn btn-green" onclick="openSeasonModal()">+ Добавить период</button>
+              <button class="btn btn-outline" onclick="seedDefaultSeasons()">📅 Стандартные сезоны</button>
+            </div>
+            <div class="card">
+              <table>
+                <thead><tr><th>Название</th><th>Тип</th><th>Даты</th><th>Доплата</th><th>Статус</th><th>Действия</th></tr></thead>
+                <tbody id="hd-seasons-table"><tr><td colspan="6" class="loading-spinner">Загрузка...</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -572,9 +597,7 @@ tr:hover td{background:var(--sand)}
             <option value="surcharge">🎄 Доплата (праздник)</option>
           </select>
         </div>
-        <div class="fg"><label>Отель</label>
-          <select id="s-hotel"><option value="0">🌍 Все отели (глобально)</option></select>
-        </div>
+        <input type="hidden" id="s-hotel">
         <div class="fg"><label>Дата начала *</label><input id="s-from" type="date"></div>
         <div class="fg"><label>Дата окончания *</label><input id="s-to" type="date"></div>
         <div class="fg" id="s-surcharge-wrap"><label>Доплата $/ночь</label><input id="s-surcharge" type="number" min="0" placeholder="напр. 30"></div>
@@ -665,7 +688,7 @@ function doLogout() {
 // ═══════════════════════════════
 const pageTitles = {
   dashboard:'Дашборд', hotels:'Отели', rooms:'Номера',
-  prices:'Цены', seasons:'Сезоны и доплаты', keys:'API ключи', bookings:'Бронирования', log:'Статистика'
+  prices:'Цены', 'hotel-detail':'Отель', keys:'API ключи', bookings:'Бронирования', log:'Статистика'
 };
 
 function showPage(p, el) {
@@ -682,7 +705,7 @@ function loadPage(p) {
   else if(p==='hotels') loadHotels();
   else if(p==='rooms') loadRooms();
   else if(p==='prices') loadPrices();
-  else if(p==='seasons') loadSeasons();
+  else if(p==='hotel-detail') loadHotelDetail(currentHotelDetailId);
   else if(p==='keys') loadKeys();
   else if(p==='bookings') loadBookings();
   else if(p==='log') loadLog();
@@ -811,6 +834,7 @@ function renderHotelsPage() {
       <td><span class="badge badge-${h.status==='active'?'green':'amber'}">${h.status==='active'?'Активен':'Скрыт'}</span></td>
       <td>
         <div class="actions-cell">
+          <button class="btn btn-green btn-sm" onclick="openHotelDetail(${h.id})">Номера</button>
           <button class="btn btn-outline btn-sm" onclick="editHotel(${h.id})">Изменить</button>
           <button class="btn btn-sm" style="background:var(--${h.status==='active'?'amber-l':'teal-l'});color:var(--${h.status==='active'?'amber':'teal'});border:1px solid var(--border2)" onclick="toggleHotel(${h.id})">${h.status==='active'?'Скрыть':'Показать'}</button>
         </div>
@@ -1005,6 +1029,8 @@ function openRoomModal(id=null) {
     document.getElementById('r-capacity').value='2';
     document.getElementById('r-minnights').value='1';
     PRICE_FIELDS.forEach(f => document.getElementById(f.id).value = '');
+    // Pre-select current hotel if opened from hotel detail
+    if (currentHotelDetailId) sel.value = currentHotelDetailId;
   }
   document.getElementById('modal-room').classList.add('open');
 }
@@ -1040,7 +1066,10 @@ async function saveRoom() {
     }
     closeModal('modal-room');
     btn.disabled = false; btn.textContent = 'Сохранить';
-    loadRooms();
+    await loadRooms();
+    if (currentHotelDetailId && document.getElementById('page-hotel-detail').classList.contains('active')) {
+      renderHdRooms(currentHotelDetailId);
+    }
   } catch(err) {
     document.getElementById('save-room-btn').disabled = false;
     document.getElementById('save-room-btn').textContent = 'Сохранить';
@@ -1053,7 +1082,10 @@ async function deleteRoom(id) {
   try {
     await API.del('/api/admin/rooms/'+id);
     showToast('Номер удалён','success');
-    loadRooms();
+    await loadRooms();
+    if (currentHotelDetailId && document.getElementById('page-hotel-detail').classList.contains('active')) {
+      renderHdRooms(currentHotelDetailId);
+    }
   } catch(err) { showToast('Ошибка: '+err.message,'error'); }
 }
 
@@ -1238,42 +1270,91 @@ async function loadLog() {
 }
 
 // ═══════════════════════════════
-// SEASONS / RATE PERIODS
+// HOTEL DETAIL (per-hotel view with Rooms + Seasons tabs)
 // ═══════════════════════════════
-let seasonsCache = [];
+let currentHotelDetailId = null;
+let hdSeasonsCache = [];
 let editingSeasonId = null;
 
-async function loadSeasons() {
+function openHotelDetail(hotelId) {
+  currentHotelDetailId = hotelId;
+  showPage('hotel-detail', null);
+  // Highlight no sidebar item
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+}
+
+async function loadHotelDetail(hotelId) {
+  if (!hotelId) return;
+  const h = hotelById(hotelId);
+  if (!h) { await loadHotels(); }
+  const hotel = hotelById(hotelId);
+  if (!hotel) return;
+  document.getElementById('hd-hotel-name').textContent = hotel.name;
+  document.getElementById('hd-hotel-loc').textContent = '📍 ' + hotel.loc + ' · ★ ' + hotel.rating;
+  document.getElementById('page-title').textContent = hotel.name;
+  renderHdRooms(hotelId);
+  await loadHdSeasons(hotelId);
+}
+
+function switchHdTab(tab) {
+  document.getElementById('hd-tab-rooms').style.display = tab==='rooms'?'':'none';
+  document.getElementById('hd-tab-seasons').style.display = tab==='seasons'?'':'none';
+  document.getElementById('tab-hd-rooms').classList.toggle('active', tab==='rooms');
+  document.getElementById('tab-hd-seasons').classList.toggle('active', tab==='seasons');
+}
+
+// ── Hotel Detail: Rooms tab ──
+function renderHdRooms(hotelId) {
+  const rooms = roomsByHotel(hotelId);
+  document.getElementById('hd-rooms-count').textContent = '(' + rooms.length + ')';
+  const ACCOM_KEYS = ['SGL','DBL','TPL','4PAX','DBL_INF','DBL_INF_EB','DBL_CHD','DBL_2INF','DBL_INF_CHD','DBL_2CHD','TPL_INF','TPL_2INF'];
+  document.getElementById('hd-rooms-table').innerHTML = rooms.length ? rooms.map(r => {
+    let prices = {}; try { prices = JSON.parse(r.prices||'{}'); } catch(e){}
+    const pStr = ACCOM_KEYS.filter(k=>prices[k]).map(k=>k+' $'+prices[k]).join(' · ') || (r.price ? '$'+r.price : '—');
+    const bf = (r.breakfast==='1'||r.breakfast==='1.0')?'BB':(r.breakfast==='0'?'RO':(r.breakfast||'RO'));
+    return `<tr>
+      <td><strong>${escHtml(r.type)}</strong></td>
+      <td>${escHtml(r.view||'—')}</td>
+      <td>${escHtml(bf)}</td>
+      <td>${r.capacity||2}</td>
+      <td style="font-size:12px">${pStr}</td>
+      <td><span class="badge badge-${r.status==='active'?'green':'amber'}">${r.status==='active'?'Активен':'Скрыт'}</span></td>
+      <td><div class="actions-cell">
+        <button class="btn btn-outline btn-sm" onclick="editRoom(${r.id})">Изменить</button>
+        <button class="btn btn-red btn-sm" onclick="deleteRoom(${r.id})">Удалить</button>
+      </div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Нет номеров. Нажмите «+ Добавить номер».</td></tr>';
+}
+
+// ── Hotel Detail: Seasons tab ──
+async function loadHdSeasons(hotelId) {
   try {
-    seasonsCache = await API.get('/api/admin/rate-periods');
-    hotelsCache = await API.get('/api/admin/hotels');
-    renderSeasons();
+    const all = await API.get('/api/admin/rate-periods');
+    hdSeasonsCache = all.filter(s => s.hotelId === hotelId);
+    renderHdSeasons();
   } catch(err) { showToast('Ошибка: '+err.message,'error'); }
 }
 
-function renderSeasons() {
+function renderHdSeasons() {
   const typeLabels = {season:'🌞 Сезон', surcharge:'🎄 Доплата'};
   const typeColors = {season:'green', surcharge:'amber'};
-  document.getElementById('seasons-table').innerHTML = seasonsCache.length ? seasonsCache.map(s => {
-    const h = s.hotelId ? hotelById(s.hotelId) : null;
-    const hotelName = s.hotelId === 0 ? '🌍 Все отели' : (h ? escHtml(h.name) : 'Отель #'+s.hotelId);
+  document.getElementById('hd-seasons-count').textContent = '(' + hdSeasonsCache.length + ')';
+  document.getElementById('hd-seasons-table').innerHTML = hdSeasonsCache.length ? hdSeasonsCache.map(s => {
     const today = new Date().toISOString().split('T')[0];
     const isActive = s.status==='active' && s.dateFrom<=today && s.dateTo>=today;
     return `<tr>
       <td><strong>${escHtml(s.name)}</strong></td>
       <td><span class="badge badge-${typeColors[s.type]||'green'}">${typeLabels[s.type]||s.type}</span></td>
-      <td style="font-size:12px">${hotelName}</td>
       <td style="font-size:12px;white-space:nowrap">${s.dateFrom} → ${s.dateTo}</td>
       <td>${s.type==='surcharge' ? '<strong style="color:var(--coral)">+$'+s.surcharge+'/ночь</strong>' : '—'}</td>
       <td><span class="badge badge-${isActive?'green':s.status==='active'?'amber':'red'}">${isActive?'Активен':s.status==='active'?'Ожидает':'Откл.'}</span></td>
-      <td>
-        <div class="actions-cell">
-          <button class="btn btn-outline btn-sm" onclick="editSeason(${s.id})">Изменить</button>
-          <button class="btn btn-red btn-sm" onclick="deleteSeason(${s.id})">Удалить</button>
-        </div>
-      </td>
+      <td><div class="actions-cell">
+        <button class="btn btn-outline btn-sm" onclick="editSeason(${s.id})">Изменить</button>
+        <button class="btn btn-red btn-sm" onclick="deleteSeason(${s.id})">Удалить</button>
+      </div></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Нет периодов. Нажмите «Создать стандартные сезоны» для быстрого старта.</td></tr>';
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Нет периодов. Нажмите «Стандартные сезоны» для быстрого старта.</td></tr>';
 }
 
 function toggleSurchargeField() {
@@ -1288,14 +1369,11 @@ function toggleSurchargeField() {
 function openSeasonModal(id=null) {
   editingSeasonId = id;
   document.getElementById('modal-season-title').textContent = id ? 'Изменить период' : 'Добавить период';
-  // Fill hotel select
-  const sel = document.getElementById('s-hotel');
-  sel.innerHTML = '<option value="0">🌍 Все отели (глобально)</option>' + hotelsCache.map(h=>`<option value="${h.id}">${escHtml(h.name)}</option>`).join('');
+  document.getElementById('s-hotel').value = currentHotelDetailId;
   if (id) {
-    const s = seasonsCache.find(x=>x.id===id);
+    const s = hdSeasonsCache.find(x=>x.id===id);
     document.getElementById('s-name').value = s.name;
     document.getElementById('s-type').value = s.type;
-    sel.value = s.hotelId;
     document.getElementById('s-from').value = s.dateFrom;
     document.getElementById('s-to').value = s.dateTo;
     document.getElementById('s-surcharge').value = s.surcharge||'';
@@ -1329,7 +1407,7 @@ async function saveSeason() {
   if (tpl>0) prices.TPL=tpl;
   if (fpax>0) prices['4PAX']=fpax;
   const data = {
-    hotelId: parseInt(document.getElementById('s-hotel').value)||0,
+    hotelId: currentHotelDetailId,
     name, type, dateFrom, dateTo, prices,
     surcharge: parseFloat(document.getElementById('s-surcharge').value)||0,
     status: 'active'
@@ -1346,7 +1424,7 @@ async function saveSeason() {
     }
     closeModal('modal-season');
     btn.disabled=false; btn.textContent='Сохранить';
-    loadSeasons();
+    await loadHdSeasons(currentHotelDetailId);
   } catch(err) {
     document.getElementById('save-season-btn').disabled=false;
     document.getElementById('save-season-btn').textContent='Сохранить';
@@ -1359,26 +1437,27 @@ async function deleteSeason(id) {
   try {
     await API.del('/api/admin/rate-periods/'+id);
     showToast('Период удалён','success');
-    loadSeasons();
+    await loadHdSeasons(currentHotelDetailId);
   } catch(err) { showToast('Ошибка: '+err.message,'error'); }
 }
 
 async function seedDefaultSeasons() {
-  if (!confirm('Создать 4 стандартных сезона + 2 праздничных доплаты?')) return;
+  if (!confirm('Создать 4 стандартных сезона + 2 праздничных доплаты для этого отеля?')) return;
+  const hid = currentHotelDetailId;
   const defaults = [
-    {name:'Low Season 2026', type:'season', dateFrom:'2026-05-01', dateTo:'2026-09-30', hotelId:0, prices:{}, surcharge:0},
-    {name:'Mid Season 2026', type:'season', dateFrom:'2026-10-01', dateTo:'2026-11-30', hotelId:0, prices:{}, surcharge:0},
-    {name:'High Season 2026-27', type:'season', dateFrom:'2026-12-01', dateTo:'2027-03-31', hotelId:0, prices:{}, surcharge:0},
-    {name:'Peak Season 2027', type:'season', dateFrom:'2027-01-15', dateTo:'2027-02-28', hotelId:0, prices:{}, surcharge:0},
-    {name:'Christmas 2026', type:'surcharge', dateFrom:'2026-12-20', dateTo:'2026-12-26', hotelId:0, prices:{}, surcharge:25},
-    {name:'New Year 2027', type:'surcharge', dateFrom:'2026-12-27', dateTo:'2027-01-05', hotelId:0, prices:{}, surcharge:35},
+    {name:'Low Season 2026', type:'season', dateFrom:'2026-05-01', dateTo:'2026-09-30', hotelId:hid, prices:{}, surcharge:0},
+    {name:'Mid Season 2026', type:'season', dateFrom:'2026-10-01', dateTo:'2026-11-30', hotelId:hid, prices:{}, surcharge:0},
+    {name:'High Season 2026-27', type:'season', dateFrom:'2026-12-01', dateTo:'2027-03-31', hotelId:hid, prices:{}, surcharge:0},
+    {name:'Peak Season 2027', type:'season', dateFrom:'2027-01-15', dateTo:'2027-02-28', hotelId:hid, prices:{}, surcharge:0},
+    {name:'Christmas 2026', type:'surcharge', dateFrom:'2026-12-20', dateTo:'2026-12-26', hotelId:hid, prices:{}, surcharge:25},
+    {name:'New Year 2027', type:'surcharge', dateFrom:'2026-12-27', dateTo:'2027-01-05', hotelId:hid, prices:{}, surcharge:35},
   ];
   try {
     for (const d of defaults) {
       await API.post('/api/admin/rate-periods', {...d, status:'active'});
     }
     showToast('6 периодов создано!','success');
-    loadSeasons();
+    await loadHdSeasons(hid);
   } catch(err) { showToast('Ошибка: '+err.message,'error'); }
 }
 
