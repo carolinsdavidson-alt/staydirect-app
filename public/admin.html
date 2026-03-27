@@ -358,7 +358,7 @@ tr:hover td{background:var(--sand)}
             <button class="btn btn-green" onclick="openRoomModal()">+ Добавить номер</button>
           </div>
           <div class="card">
-            <table><thead><tr><th>Отель</th><th>Тип номера</th><th>Вид</th><th>Вместимость</th><th>Цена/ночь</th><th>Статус</th><th>Действия</th></tr></thead>
+            <table><thead><tr><th>Отель</th><th>Тип номера</th><th>Вид</th><th>Вмест.</th><th>Цены ($/ночь)</th><th>Статус</th><th>Действия</th></tr></thead>
             <tbody id="rooms-table"><tr><td colspan="7" class="loading-spinner">Загрузка...</td></tr></tbody></table>
           </div>
           <div class="pagination" id="rooms-pagination"></div>
@@ -475,31 +475,29 @@ tr:hover td{background:var(--sand)}
             <option value="Tent / Eco Tent">
           </datalist></div>
         <div class="fg"><label>Вид из номера</label>
-          <select id="r-view">
-            <option>Sea view</option><option>Pool view</option>
-            <option>Garden view</option><option>Mountain</option><option>Street view</option>
-          </select>
+          <input id="r-view" list="view-types" placeholder="Введите или выберите...">
+          <datalist id="view-types">
+            <option value="Sea view"><option value="Ocean view"><option value="Pool view">
+            <option value="Garden view"><option value="Mountain view"><option value="Street view">
+            <option value="River view"><option value="Lagoon view"><option value="Jungle view">
+          </datalist>
         </div>
-        <div class="fg"><label>Размещение</label>
-          <select id="r-beds">
-              <option>SGL</option>
-              <option>DBL</option>
-              <option>TPL</option>
-              <option>4 PAX</option>
-              <option>DBL+ INF (without Ex. bed)(0-4.99)</option>
-              <option>DBL+ INF (with 1 Ex. Bed)(0-4.99)</option>
-              <option>DBL+CHD (1Ex. Bed)(5-11.99)</option>
-              <option>DBL+ 2 Infant (1 Ex Bed)(0-4.99)(0-4.99)</option>
-              <option>DBL+1INF+1CHD(EXTRA BED)(0-4.99)(5-11.99)</option>
-              <option>DBL+2CHD (1Ex.Bed)(5-11.99)(5-11.99)</option>
-              <option>TRPL+INF(WITHOUT EXTRA BED)(0-4.99)</option>
-              <option>TRPL+2INF (WITHOUT EXTRA BED)(0-4.99)(0-4.99)</option>
-            </select>
-        </div>
-        <div class="section-divider">💰 Цены</div>
-        <div class="fg"><label>Цена за ночь ($) *</label><input id="r-price" type="number" min="1" placeholder="39"></div>
         <div class="fg"><label>Вместимость (чел.)</label><input id="r-capacity" type="number" min="1" value="2"></div>
         <div class="fg"><label>Мин. ночей</label><input id="r-minnights" type="number" min="1" value="1"></div>
+        <div class="section-divider">💰 Цены по размещению ($/ночь)</div>
+        <div class="fg"><label>SGL</label><input id="r-price-sgl" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label>DBL</label><input id="r-price-dbl" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label>TPL</label><input id="r-price-tpl" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label>4 PAX</label><input id="r-price-4pax" type="number" min="0" placeholder="—"></div>
+        <div class="fg full" style="margin-top:4px"><label style="font-size:11px;color:var(--muted)">С детьми / инфантами</label></div>
+        <div class="fg"><label style="font-size:11px">DBL+INF (no ex.bed)</label><input id="r-price-dbl-inf" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+INF (1 ex.bed)</label><input id="r-price-dbl-inf-eb" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+CHD (1 ex.bed)</label><input id="r-price-dbl-chd" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+2INF (1 ex.bed)</label><input id="r-price-dbl-2inf" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+INF+CHD (ex.bed)</label><input id="r-price-dbl-inf-chd" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">DBL+2CHD (1 ex.bed)</label><input id="r-price-dbl-2chd" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">TPL+INF (no ex.bed)</label><input id="r-price-tpl-inf" type="number" min="0" placeholder="—"></div>
+        <div class="fg"><label style="font-size:11px">TPL+2INF (no ex.bed)</label><input id="r-price-tpl-2inf" type="number" min="0" placeholder="—"></div>
         <div class="fg"><label>Тип питания</label>
           <select id="r-breakfast">
             <option value="BB">BB (Bed & Breakfast)</option>
@@ -860,6 +858,20 @@ function filterRooms() {
 
 function goRoomsPage(p) { roomsPage = p; renderRoomsPage(); }
 
+function parsePrices(r) {
+  try { return typeof r.prices==='string' ? JSON.parse(r.prices||'{}') : (r.prices||{}); } catch(e){ return {}; }
+}
+function formatPricesSummary(r) {
+  const p = parsePrices(r);
+  const keys = Object.keys(p);
+  if (!keys.length) return `<strong style="color:var(--teal)">$${r.price}</strong>/ночь`;
+  const main = ['SGL','DBL','TPL','4PAX'].filter(k=>p[k]);
+  const parts = main.map(k=>`<span style="font-size:11px;color:var(--muted)">${k}</span> <strong style="color:var(--teal)">$${p[k]}</strong>`);
+  const extra = keys.length - main.length;
+  if (extra > 0) parts.push(`<span style="font-size:10px;color:var(--muted)">+${extra}</span>`);
+  return parts.join(' · ');
+}
+
 function renderRoomsPage() {
   const start = (roomsPage-1)*PER_PAGE;
   const slice = roomsFiltered.slice(start, start+PER_PAGE);
@@ -870,7 +882,7 @@ function renderRoomsPage() {
       <td><strong>${escHtml(r.type)}</strong></td>
       <td>${escHtml(r.view)}</td>
       <td>${r.capacity} чел.</td>
-      <td><strong style="color:var(--teal);font-size:16px">$${r.price}</strong>/ночь</td>
+      <td style="font-size:12px">${formatPricesSummary(r)}</td>
       <td><span class="badge badge-${r.status==='active'?'green':'amber'}">${r.status==='active'?'Активен':'Скрыт'}</span></td>
       <td>
         <div class="actions-cell">
@@ -883,6 +895,38 @@ function renderRoomsPage() {
   renderPagination('rooms-pagination', roomsFiltered.length, roomsPage, 'goRoomsPage');
 }
 
+const PRICE_FIELDS = [
+  {id:'r-price-sgl', key:'SGL'},
+  {id:'r-price-dbl', key:'DBL'},
+  {id:'r-price-tpl', key:'TPL'},
+  {id:'r-price-4pax', key:'4PAX'},
+  {id:'r-price-dbl-inf', key:'DBL_INF'},
+  {id:'r-price-dbl-inf-eb', key:'DBL_INF_EB'},
+  {id:'r-price-dbl-chd', key:'DBL_CHD'},
+  {id:'r-price-dbl-2inf', key:'DBL_2INF'},
+  {id:'r-price-dbl-inf-chd', key:'DBL_INF_CHD'},
+  {id:'r-price-dbl-2chd', key:'DBL_2CHD'},
+  {id:'r-price-tpl-inf', key:'TPL_INF'},
+  {id:'r-price-tpl-2inf', key:'TPL_2INF'},
+];
+
+function getPricesFromForm() {
+  const p = {};
+  PRICE_FIELDS.forEach(f => {
+    const v = parseFloat(document.getElementById(f.id).value);
+    if (v > 0) p[f.key] = v;
+  });
+  return p;
+}
+
+function setPricesInForm(prices) {
+  let p = {};
+  try { p = typeof prices === 'string' ? JSON.parse(prices||'{}') : (prices||{}); } catch(e){}
+  PRICE_FIELDS.forEach(f => {
+    document.getElementById(f.id).value = p[f.key] || '';
+  });
+}
+
 function openRoomModal(id=null) {
   editingId.room = id;
   const sel = document.getElementById('r-hotel');
@@ -893,17 +937,21 @@ function openRoomModal(id=null) {
     sel.value = r.hotelId;
     document.getElementById('r-type').value = r.type;
     document.getElementById('r-view').value = r.view;
-    document.getElementById('r-beds').value = r.beds;
-    document.getElementById('r-price').value = r.price;
     document.getElementById('r-capacity').value = r.capacity;
     document.getElementById('r-minnights').value = r.minNights;
     document.getElementById('r-breakfast').value = r.breakfast;
     document.getElementById('r-cancel').value = r.cancel;
+    setPricesInForm(r.prices);
+    // Fallback: if no prices JSON but has old price field, put it in DBL
+    if ((!r.prices || r.prices==='{}') && r.price > 0) {
+      document.getElementById('r-price-dbl').value = r.price;
+    }
   } else {
     document.getElementById('r-type').value='';
-    document.getElementById('r-price').value='';
+    document.getElementById('r-view').value='';
     document.getElementById('r-capacity').value='2';
     document.getElementById('r-minnights').value='1';
+    PRICE_FIELDS.forEach(f => document.getElementById(f.id).value = '');
   }
   document.getElementById('modal-room').classList.add('open');
 }
@@ -911,15 +959,19 @@ function editRoom(id) { openRoomModal(id); }
 
 async function saveRoom() {
   const type = document.getElementById('r-type').value.trim();
-  const price = parseFloat(document.getElementById('r-price').value);
-  if (!type||!price) { showToast('Заполните тип и цену','error'); return; }
+  const prices = getPricesFromForm();
+  const hasAnyPrice = Object.keys(prices).length > 0;
+  if (!type) { showToast('Заполните тип номера','error'); return; }
+  if (!hasAnyPrice) { showToast('Укажите хотя бы одну цену','error'); return; }
+  const basePrice = prices.DBL || prices.SGL || Object.values(prices)[0] || 0;
   const data = {
     hotelId:parseInt(document.getElementById('r-hotel').value),
     type, view:document.getElementById('r-view').value,
-    beds:document.getElementById('r-beds').value,
-    price, capacity:parseInt(document.getElementById('r-capacity').value)||2,
+    beds:'DBL',
+    price:basePrice, prices,
+    capacity:parseInt(document.getElementById('r-capacity').value)||2,
     minNights:parseInt(document.getElementById('r-minnights').value)||1,
-    breakfast:parseInt(document.getElementById('r-breakfast').value),
+    breakfast:document.getElementById('r-breakfast').value,
     cancel:parseInt(document.getElementById('r-cancel').value),
     status:'active'
   };
@@ -974,19 +1026,34 @@ function filterPrices() {
   renderPricesGrid();
 }
 
+const PRICE_LABELS = {
+  SGL:'SGL', DBL:'DBL', TPL:'TPL', '4PAX':'4 PAX',
+  DBL_INF:'DBL+INF', DBL_INF_EB:'DBL+INF(eb)', DBL_CHD:'DBL+CHD',
+  DBL_2INF:'DBL+2INF', DBL_INF_CHD:'DBL+INF+CHD', DBL_2CHD:'DBL+2CHD',
+  TPL_INF:'TPL+INF', TPL_2INF:'TPL+2INF'
+};
+
 function renderPricesGrid() {
-  const show = pricesFiltered.slice(0, 60); // show first 60 for performance
+  const show = pricesFiltered.slice(0, 60);
   document.getElementById('prices-grid').innerHTML = show.map(r=>{
     const h = hotelById(r.hotelId);
+    const p = parsePrices(r);
+    const pKeys = Object.keys(p);
+    const priceRows = pKeys.length ? pKeys.map(k=>
+      `<div class="pc-price-row">
+        <label>${escHtml(PRICE_LABELS[k]||k)}</label>
+        <input class="price-input" type="number" min="0" value="${p[k]}" data-room="${r.id}" data-key="${escHtml(k)}" onkeydown="if(event.key==='Enter')savePrices(${r.id})">
+      </div>`
+    ).join('') : `<div class="pc-price-row">
+        <label>Цена/ночь</label>
+        <input class="price-input" type="number" min="1" value="${r.price}" data-room="${r.id}" data-key="_base" onkeydown="if(event.key==='Enter')savePrices(${r.id})">
+      </div>`;
     return `<div class="price-card">
       <div class="pc-hotel">${h?(h.photo?'<img src="'+escHtml(h.photo)+'" style="width:28px;height:20px;object-fit:cover;border-radius:3px;vertical-align:middle;margin-right:4px">':escHtml(h.emoji)+' ')+escHtml(h.name):'—'}</div>
       <div class="pc-room">${escHtml(r.type)}</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${escHtml(r.view)} · ${r.capacity} чел. · ${r.breakfast && r.breakfast!=='0' && r.breakfast!=='RO' ? escHtml(typeof r.breakfast==='number'?(r.breakfast?'BB':'RO'):r.breakfast) : 'RO'}</div>
-      <div class="pc-price-row">
-        <label>Цена/ночь $</label>
-        <input class="price-input" type="number" min="1" value="${r.price}" id="price-${r.id}" onkeydown="if(event.key==='Enter')savePrice(${r.id})">
-      </div>
-      <button class="pc-save" id="save-btn-${r.id}" onclick="savePrice(${r.id})">Сохранить цену</button>
+      ${priceRows}
+      <button class="pc-save" id="save-btn-${r.id}" onclick="savePrices(${r.id})">Сохранить</button>
     </div>`;
   }).join('') || '<div class="loading-spinner">Ничего не найдено</div>';
   if(pricesFiltered.length > 60) {
@@ -994,19 +1061,27 @@ function renderPricesGrid() {
   }
 }
 
-async function savePrice(id) {
-  const input = document.getElementById('price-'+id);
-  const newPrice = parseFloat(input.value);
-  if (!newPrice||newPrice<1) { showToast('Введите корректную цену','error'); return; }
+async function savePrices(id) {
+  const inputs = document.querySelectorAll(`input[data-room="${id}"]`);
+  const prices = {};
+  let basePrice = 0;
+  inputs.forEach(inp => {
+    const k = inp.dataset.key;
+    const v = parseFloat(inp.value);
+    if (k === '_base') { basePrice = v; }
+    else if (v > 0) { prices[k] = v; }
+  });
+  if (!basePrice) basePrice = prices.DBL || prices.SGL || Object.values(prices)[0] || 0;
+  if (!basePrice && !Object.keys(prices).length) { showToast('Укажите хотя бы одну цену','error'); return; }
   try {
-    await API.put('/api/admin/rooms/'+id, {price: newPrice});
+    await API.put('/api/admin/rooms/'+id, { price: basePrice, prices });
     const btn = document.getElementById('save-btn-'+id);
     btn.textContent = '✓ Сохранено!';
     btn.className = 'pc-save pc-saved';
-    setTimeout(()=>{ btn.textContent='Сохранить цену'; btn.className='pc-save'; }, 2000);
-    // Update cache
+    setTimeout(()=>{ btn.textContent='Сохранить'; btn.className='pc-save'; }, 2000);
     const room = roomsCache.find(r=>r.id===id);
-    if(room) { const old=room.price; room.price=newPrice; showToast(`Цена обновлена: $${old} → $${newPrice}`,'success'); }
+    if(room) { room.price=basePrice; room.prices=JSON.stringify(prices); }
+    showToast('Цены обновлены','success');
   } catch(err) { showToast('Ошибка: '+err.message,'error'); }
 }
 

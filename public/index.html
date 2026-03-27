@@ -196,9 +196,9 @@ section{padding:100px 5%}
 .hotel-name{font-size:16px;font-weight:500;margin-bottom:4px}
 .hotel-loc{font-size:12px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:4px}
 .hotel-rooms{border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:6px}
-.room-row{display:flex;justify-content:space-between;align-items:center}
-.room-name{font-size:12px;color:var(--muted)}
-.room-price{font-size:14px;font-weight:600;color:var(--teal)}
+.room-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.room-name{font-size:12px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-price{font-size:14px;font-weight:600;color:var(--teal);white-space:nowrap;text-align:right}
 .room-price span{font-size:11px;font-weight:400;color:var(--muted)}
 .hotel-footer{margin-top:14px;display:flex;gap:8px;align-items:center;justify-content:space-between}
 .hotel-amenities-tags{display:flex;gap:4px;flex-wrap:wrap;flex:1}
@@ -782,10 +782,31 @@ function renderHotels(list, nights) {
   const grid = document.getElementById('hotels-grid');
   
   grid.innerHTML = visible.map(h => {
-    const minPrice = h.rooms.length ? Math.min(...h.rooms.map(r=>r.price)) : 0;
+    const getMinPrice = (rooms) => {
+      let min = Infinity;
+      rooms.forEach(r => {
+        const p = r.prices || {};
+        const vals = Object.values(p);
+        if (vals.length) min = Math.min(min, ...vals);
+        else if (r.price > 0) min = Math.min(min, r.price);
+      });
+      return min === Infinity ? 0 : min;
+    };
+    const minPrice = getMinPrice(h.rooms);
     const photoStyle = h.photo 
       ? 'background-image:url(' + h.photo + ');background-size:cover;background-position:center'
       : '';
+    const formatRoomPrice = (r) => {
+      const p = r.prices || {};
+      const dbl = p.DBL || p.SGL || r.price || 0;
+      const hasPrices = Object.keys(p).length > 0;
+      if (!hasPrices) return '<span class="room-price">$' + r.price + '<span>/ночь</span></span>';
+      const parts = [];
+      if (p.SGL) parts.push('SGL $' + p.SGL);
+      if (p.DBL) parts.push('DBL $' + p.DBL);
+      if (p.TPL) parts.push('TPL $' + p.TPL);
+      return '<span class="room-price" style="font-size:12px">' + (parts.length ? parts.join(' · ') : '$' + dbl) + '<span>/ночь</span></span>';
+    };
     return '<div class="hotel-card">' +
       '<div class="hotel-img" style="' + photoStyle + '">' +
         (h.photo ? '' : '<span>' + (h.emoji||'🏨') + '</span>') +
@@ -797,8 +818,8 @@ function renderHotels(list, nights) {
         '<div class="hotel-rooms">' +
           h.rooms.slice(0,3).map(r => 
             '<div class="room-row">' +
-              '<span class="room-name">' + escH(r.type) + '</span>' +
-              '<span class="room-price">$' + r.price + '<span>/ночь</span></span>' +
+              '<span class="room-name">' + escH(r.type) + (r.view ? ' · ' + escH(r.view) : '') + '</span>' +
+              formatRoomPrice(r) +
             '</div>'
           ).join('') +
           (h.rooms.length > 3 ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">+ ещё ' + (h.rooms.length-3) + ' типов номеров</div>' : '') +

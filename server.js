@@ -37,8 +37,9 @@ db.exec(`
     hotelId INTEGER NOT NULL,
     type TEXT NOT NULL,
     view TEXT DEFAULT 'Sea view',
-    beds TEXT DEFAULT 'Double',
+    beds TEXT DEFAULT 'DBL',
     price REAL NOT NULL,
+    prices TEXT DEFAULT '{}',
     capacity INTEGER DEFAULT 2,
     minNights INTEGER DEFAULT 1,
     breakfast TEXT DEFAULT 'BB',
@@ -203,14 +204,16 @@ app.get('/api/admin/rooms', (req, res) => {
 
 app.post('/api/admin/rooms', (req, res) => {
   try {
-    const { hotelId, type, view, beds, price, capacity, minNights, breakfast, cancel, status } = req.body;
-    if (!hotelId || !type || price === undefined) {
-      return res.status(400).json({ error: 'hotelId, type, and price are required' });
+    const { hotelId, type, view, beds, price, prices, capacity, minNights, breakfast, cancel, status } = req.body;
+    if (!hotelId || !type) {
+      return res.status(400).json({ error: 'hotelId and type are required' });
     }
+    const pricesJson = typeof prices === 'object' ? JSON.stringify(prices) : (prices || '{}');
+    const basePrice = price || (prices && typeof prices === 'object' ? (prices.DBL || prices.SGL || Object.values(prices)[0] || 0) : 0);
     const result = db.prepare(
-      `INSERT INTO rooms (hotelId, type, view, beds, price, capacity, minNights, breakfast, cancel, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(hotelId, type, view || 'Sea view', beds || 'DBL', price, capacity || 2, minNights || 1, breakfast || 'BB', cancel ?? 1, status || 'active');
+      `INSERT INTO rooms (hotelId, type, view, beds, price, prices, capacity, minNights, breakfast, cancel, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(hotelId, type, view || 'Sea view', beds || 'DBL', basePrice, pricesJson, capacity || 2, minNights || 1, breakfast || 'BB', cancel ?? 1, status || 'active');
     const room = db.prepare('SELECT * FROM rooms WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(room);
   } catch (err) {
@@ -224,16 +227,19 @@ app.put('/api/admin/rooms/:id', (req, res) => {
     if (!existing) {
       return res.status(404).json({ error: 'Room not found' });
     }
-    const { hotelId, type, view, beds, price, capacity, minNights, breakfast, cancel, status } = req.body;
+    const { hotelId, type, view, beds, price, prices, capacity, minNights, breakfast, cancel, status } = req.body;
+    const pricesJson = prices ? (typeof prices === 'object' ? JSON.stringify(prices) : prices) : existing.prices;
+    const basePrice = price || (prices && typeof prices === 'object' ? (prices.DBL || prices.SGL || Object.values(prices)[0] || 0) : null);
     db.prepare(
-      `UPDATE rooms SET hotelId=?, type=?, view=?, beds=?, price=?, capacity=?, minNights=?, breakfast=?, cancel=?, status=?
+      `UPDATE rooms SET hotelId=?, type=?, view=?, beds=?, price=?, prices=?, capacity=?, minNights=?, breakfast=?, cancel=?, status=?
        WHERE id=?`
     ).run(
       hotelId ?? existing.hotelId,
       type ?? existing.type,
       view ?? existing.view,
       beds ?? existing.beds,
-      price ?? existing.price,
+      basePrice ?? existing.price,
+      pricesJson,
       capacity ?? existing.capacity,
       minNights ?? existing.minNights,
       breakfast ?? existing.breakfast,
@@ -483,7 +489,11 @@ app.get('/api/public/hotels', (req, res) => {
     const rooms = db.prepare('SELECT * FROM rooms WHERE status = ?').all('active');
     const result = hotels.map(h => ({
       ...h,
-      rooms: rooms.filter(r => r.hotelId === h.id).map(r => ({ type: r.type, price: r.price }))
+      rooms: rooms.filter(r => r.hotelId === h.id).map(r => {
+        let prices = {};
+        try { prices = JSON.parse(r.prices || '{}'); } catch(e){}
+        return { type: r.type, view: r.view, price: r.price, prices, breakfast: r.breakfast, capacity: r.capacity };
+      })
     }));
     res.json(result);
   } catch (err) {
