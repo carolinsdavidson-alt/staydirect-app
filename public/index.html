@@ -209,6 +209,66 @@ section{padding:100px 5%}
 .btn-sm-outline{background:transparent;border:1px solid var(--border);color:var(--ink)}
 .btn-sm-outline:hover{border-color:var(--teal);color:var(--teal)}
 
+/* ── HOTEL MODAL ── */
+.hotel-overlay{
+  position:fixed;inset:0;background:rgba(13,13,11,0.55);backdrop-filter:blur(6px);
+  z-index:200;display:none;align-items:center;justify-content:center;padding:24px;
+}
+.hotel-overlay.open{display:flex}
+.hotel-modal{
+  background:#fff;border-radius:16px;width:100%;max-width:820px;max-height:90vh;
+  overflow-y:auto;position:relative;
+}
+.hm-header{
+  position:relative;height:220px;background:linear-gradient(135deg,var(--teal-light),var(--sand2));
+  background-size:cover;background-position:center;border-radius:16px 16px 0 0;
+  display:flex;align-items:flex-end;padding:24px;
+}
+.hm-header-overlay{
+  position:absolute;inset:0;border-radius:16px 16px 0 0;
+  background:linear-gradient(transparent 40%, rgba(0,0,0,0.55));
+}
+.hm-header-content{position:relative;color:#fff;z-index:1}
+.hm-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;line-height:1.1}
+.hm-loc{font-size:13px;opacity:0.85;margin-top:4px}
+.hm-close{
+  position:absolute;top:14px;right:14px;z-index:2;
+  width:36px;height:36px;border-radius:50%;border:none;
+  background:rgba(255,255,255,0.9);backdrop-filter:blur(4px);
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .2s;
+}
+.hm-close:hover{background:#fff}
+.hm-body{padding:24px}
+.hm-meta{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.hm-tag{font-size:12px;padding:4px 12px;border-radius:20px;background:var(--sand);color:var(--muted)}
+.hm-tag.green{background:var(--teal-light);color:var(--teal)}
+.hm-rooms-title{font-size:15px;font-weight:600;margin-bottom:12px}
+.hm-rooms-table{width:100%;border-collapse:collapse;font-size:13px}
+.hm-rooms-table thead{background:var(--sand)}
+.hm-rooms-table th{text-align:left;padding:8px 10px;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
+.hm-rooms-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.hm-rooms-table tr:last-child td{border-bottom:none}
+.hm-price-cell{white-space:nowrap}
+.hm-price-tag{display:inline-block;background:var(--teal-light);color:var(--teal);font-weight:600;font-size:11px;padding:2px 7px;border-radius:4px;margin:1px 2px}
+.hm-price-tag.empty{background:var(--sand);color:var(--muted);font-weight:400}
+.hm-board{font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;display:inline-block}
+.hm-board-bb{background:#E8F5E9;color:#2E7D32}
+.hm-board-hb{background:#E3F2FD;color:#1565C0}
+.hm-board-fb{background:#FFF3E0;color:#E65100}
+.hm-board-ai{background:#F3E5F5;color:#7B1FA2}
+.hm-board-ro{background:var(--sand);color:var(--muted)}
+.hm-amenities{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.hm-amenities-title{font-size:13px;font-weight:500;margin-bottom:8px;color:var(--muted)}
+.hm-amenities-list{display:flex;gap:6px;flex-wrap:wrap}
+.hm-amenity{font-size:12px;padding:4px 10px;border-radius:8px;background:var(--sand);color:var(--ink)}
+.hm-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+@media(max-width:600px){
+  .hm-rooms-table{font-size:11px}
+  .hm-rooms-table th,.hm-rooms-table td{padding:6px 6px}
+  .hm-price-tag{font-size:10px;padding:1px 5px}
+}
+
 /* ── FOR OPERATORS ── */
 #operators{background:var(--ink);color:#fff}
 #operators .section-tag{color:var(--gold)}
@@ -679,6 +739,11 @@ footer{
 
 <div class="toast" id="toast"></div>
 
+<!-- HOTEL DETAIL MODAL -->
+<div class="hotel-overlay" id="hotel-overlay" onclick="if(event.target===this)closeHotelModal()">
+  <div class="hotel-modal" id="hotel-modal"></div>
+</div>
+
 <script>
 let hotels = [];
 let currentPage = 1;
@@ -807,7 +872,7 @@ function renderHotels(list, nights) {
       if (p.TPL) parts.push('TPL $' + p.TPL);
       return '<span class="room-price" style="font-size:12px">' + (parts.length ? parts.join(' · ') : '$' + dbl) + '<span>/ночь</span></span>';
     };
-    return '<div class="hotel-card">' +
+    return '<div class="hotel-card" onclick="openHotelModal(' + h.id + ')">' +
       '<div class="hotel-img" style="' + photoStyle + '">' +
         (h.photo ? '' : '<span>' + (h.emoji||'🏨') + '</span>') +
         '<div class="hotel-badge">★ ' + h.rating + '</div>' +
@@ -816,12 +881,14 @@ function renderHotels(list, nights) {
         '<div class="hotel-name">' + escH(h.name) + '</div>' +
         '<div class="hotel-loc">📍 ' + escH(h.loc) + ', Шри-Ланка</div>' +
         '<div class="hotel-rooms">' +
-          h.rooms.slice(0,3).map(r => 
-            '<div class="room-row">' +
-              '<span class="room-name">' + escH(r.type) + (r.view ? ' · ' + escH(r.view) : '') + '</span>' +
+          h.rooms.slice(0,3).map(r => {
+            const bf = r.breakfast || '';
+            const bfTag = (bf && bf!=='0' && bf!=='RO') ? ' · ' + (bf==='1'||bf==='1.0'?'BB':bf) : '';
+            return '<div class="room-row">' +
+              '<span class="room-name">' + escH(r.type) + (r.view ? ' · ' + escH(r.view) : '') + bfTag + '</span>' +
               formatRoomPrice(r) +
-            '</div>'
-          ).join('') +
+            '</div>';
+          }).join('') +
           (h.rooms.length > 3 ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">+ ещё ' + (h.rooms.length-3) + ' типов номеров</div>' : '') +
           '<div style="font-size:12px;color:var(--teal);font-weight:600;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">' +
             nights + ' ночей · от $' + (minPrice*nights) +
@@ -829,7 +896,7 @@ function renderHotels(list, nights) {
         '</div>' +
         '<div class="hotel-footer">' +
           '<span class="hotel-amenities-tags">' + (h.amenities||'').split(',').slice(0,3).map(a => a.trim() ? '<span class="amenity-tag">' + escH(a.trim()) + '</span>' : '').join('') + '</span>' +
-          '<button class="btn-sm btn-sm-primary" onclick="bookHotel(\'' + escH(h.name) + '\', \'' + escH(h.loc) + '\')">Запрос</button>' +
+          '<button class="btn-sm btn-sm-primary" onclick="event.stopPropagation();openHotelModal(' + h.id + ')">Подробнее</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -864,6 +931,113 @@ function bookHotel(name, loc) {
   msg += ' отправлен. Менеджер свяжется с вами.';
   showToast(msg, true);
 }
+
+// ── HOTEL DETAIL MODAL ──
+const ACCOM_LABELS = {
+  SGL:'SGL', DBL:'DBL', TPL:'TPL', '4PAX':'4 PAX',
+  DBL_INF:'DBL+INF', DBL_INF_EB:'DBL+INF(eb)', DBL_CHD:'DBL+CHD',
+  DBL_2INF:'DBL+2INF', DBL_INF_CHD:'DBL+INF+CHD', DBL_2CHD:'DBL+2CHD',
+  TPL_INF:'TPL+INF', TPL_2INF:'TPL+2INF'
+};
+const ACCOM_ORDER = ['SGL','DBL','TPL','4PAX','DBL_INF','DBL_INF_EB','DBL_CHD','DBL_2INF','DBL_INF_CHD','DBL_2CHD','TPL_INF','TPL_2INF'];
+
+function boardClass(b) {
+  if (!b || b==='RO' || b==='0') return 'hm-board hm-board-ro';
+  return 'hm-board hm-board-' + b.toLowerCase();
+}
+function boardLabel(b) {
+  if (!b || b==='0') return 'RO';
+  const map = {BB:'BB – Завтрак', HB:'HB – Полупансион', FB:'FB – Полный пансион', AI:'AI – Всё включено', RO:'RO – Без питания'};
+  return map[b] || b;
+}
+
+function openHotelModal(hotelId) {
+  const h = hotels.find(x => x.id === hotelId);
+  if (!h) return;
+  const modal = document.getElementById('hotel-modal');
+  const photoStyle = h.photo ? 'background-image:url(' + h.photo + ');background-size:cover;background-position:center;' : '';
+
+  // Collect all accommodation keys used across all rooms
+  const allKeys = new Set();
+  h.rooms.forEach(r => {
+    const p = r.prices || {};
+    Object.keys(p).forEach(k => allKeys.add(k));
+  });
+  const accomKeys = ACCOM_ORDER.filter(k => allKeys.has(k));
+  if (!accomKeys.length) accomKeys.push('_base'); // fallback
+
+  const checkin = document.getElementById('checkin').value;
+  const checkout = document.getElementById('checkout').value;
+  let nights = 7;
+  if (checkin && checkout) {
+    nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / 86400000));
+  }
+
+  // Build table header
+  const thAccom = accomKeys.map(k => 
+    '<th>' + (k === '_base' ? 'Цена' : escH(ACCOM_LABELS[k] || k)) + '</th>'
+  ).join('');
+
+  // Build room rows
+  const roomRows = h.rooms.map(r => {
+    const p = r.prices || {};
+    const priceCells = accomKeys.map(k => {
+      if (k === '_base') return '<td class="hm-price-cell"><span class="hm-price-tag">$' + r.price + '</span></td>';
+      const v = p[k];
+      return '<td class="hm-price-cell">' + (v ? '<span class="hm-price-tag">$' + v + '</span>' : '<span class="hm-price-tag empty">—</span>') + '</td>';
+    }).join('');
+    const bf = r.breakfast || 'RO';
+    const bfDisplay = (bf === '1' || bf === '1.0') ? 'BB' : (bf === '0' ? 'RO' : bf);
+    return '<tr>' +
+      '<td><strong>' + escH(r.type) + '</strong></td>' +
+      '<td>' + escH(r.view || '—') + '</td>' +
+      '<td><span class="' + boardClass(bfDisplay) + '">' + escH(bfDisplay) + '</span></td>' +
+      '<td>' + (r.capacity || 2) + '</td>' +
+      priceCells +
+      '</tr>';
+  }).join('');
+
+  const amenitiesList = (h.amenities || '').split(',').filter(a => a.trim()).map(a => '<span class="hm-amenity">' + escH(a.trim()) + '</span>').join('');
+
+  modal.innerHTML = 
+    '<div class="hm-header" style="' + photoStyle + '">' +
+      '<div class="hm-header-overlay"></div>' +
+      '<button class="hm-close" onclick="closeHotelModal()">✕</button>' +
+      '<div class="hm-header-content">' +
+        '<div class="hm-title">' + escH(h.name) + '</div>' +
+        '<div class="hm-loc">📍 ' + escH(h.loc) + ', Шри-Ланка · ★ ' + h.rating + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="hm-body">' +
+      '<div class="hm-meta">' +
+        '<span class="hm-tag green">' + h.rooms.length + ' ' + (h.rooms.length === 1 ? 'номер' : 'номеров') + '</span>' +
+        '<span class="hm-tag">' + escH(h.region || 'Southern') + '</span>' +
+        (checkin && checkout ? '<span class="hm-tag">' + formatDate(checkin) + ' – ' + formatDate(checkout) + ' (' + nights + ' ночей)</span>' : '') +
+      '</div>' +
+      (h.desc ? '<p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:20px">' + escH(h.desc) + '</p>' : '') +
+      '<div class="hm-rooms-title">Номера и цены ($/ночь)</div>' +
+      '<div style="overflow-x:auto">' +
+      '<table class="hm-rooms-table">' +
+        '<thead><tr><th>Тип номера</th><th>Вид</th><th>Питание</th><th>Гост.</th>' + thAccom + '</tr></thead>' +
+        '<tbody>' + roomRows + '</tbody>' +
+      '</table>' +
+      '</div>' +
+      (amenitiesList ? '<div class="hm-amenities"><div class="hm-amenities-title">Удобства</div><div class="hm-amenities-list">' + amenitiesList + '</div></div>' : '') +
+    '</div>' +
+    '<div class="hm-footer">' +
+      '<button class="btn-sm btn-sm-outline" onclick="closeHotelModal()">Закрыть</button>' +
+      '<button class="btn-sm btn-sm-primary" onclick="closeHotelModal();bookHotel(\'' + escH(h.name) + '\',\'' + escH(h.loc) + '\')">Отправить запрос</button>' +
+    '</div>';
+
+  document.getElementById('hotel-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeHotelModal() {
+  document.getElementById('hotel-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeHotelModal(); });
 
 function submitForm(){
   const company = document.getElementById('f-company').value.trim();
