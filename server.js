@@ -377,7 +377,15 @@ app.patch('/api/admin/keys/:id/revoke', (req, res) => {
 });
 
 // ─── Price Matrix ───────────────────────────────────────────────────
-app.get('/api/admin/hotels/:id/price-matrix', (req, res) => {
+app.get('/admin', (req, res) => {
+  const adminPath = path.join(__dirname, 'public', 'admin.html');
+  const fs = require('fs');
+  if (fs.existsSync(adminPath)) {
+    res.sendFile(adminPath);
+  } else {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+  }
+});
   try {
     const hotel = db.prepare('SELECT * FROM hotels WHERE id = ?').get(req.params.id);
     if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
