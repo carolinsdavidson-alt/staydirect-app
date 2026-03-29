@@ -378,24 +378,8 @@ app.patch('/api/admin/keys/:id/revoke', (req, res) => {
 
 // ─── Price Matrix ───────────────────────────────────────────────────
 app.get('/admin', (req, res) => {
-  const adminPath = path.join(__dirname, 'public', 'admin.html');
-  const fs = require('fs');
-  if (fs.existsSync(adminPath)) {
-    res.sendFile(adminPath);
-  } else {
-    res.sendFile(path.join(__dirname, 'admin.html'));
-  }
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
-  try {
-    const hotel = db.prepare('SELECT * FROM hotels WHERE id = ?').get(req.params.id);
-    if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
-    const rooms = db.prepare("SELECT * FROM rooms WHERE hotelId = ? AND status = 'active'").all(req.params.id);
-    const periods = db.prepare("SELECT * FROM rate_periods WHERE (hotelId = ? OR hotelId = 0) AND status = 'active' ORDER BY dateFrom").all(req.params.id);
-    let mealPlans;
-    try { mealPlans = JSON.parse(hotel.mealPlans || '["BB"]'); } catch(e) { mealPlans = ['BB']; }
-
-    // Normalize prices to nested meal plan format
-    const roomsOut = rooms.map(r => {
       let prices = normalizePrices(r.prices);
       // Fallback: if prices is empty but room has a base price, put it in BB.DBL
       if (Object.keys(prices).length === 0 && r.price > 0) {
